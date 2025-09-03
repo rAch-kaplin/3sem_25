@@ -1,6 +1,6 @@
 # useful links:
 
-[Telegram link](Coming soon)
+[Telegram link](https://t.me/+VUzeyEir1SlmNDgy)
 
 [Как установить Ubuntu в VirtualBox](https://ru.wikihow.com/установить-Ubuntu-в-VirtualBox)
 
