@@ -22,17 +22,12 @@ int main() {
     
     if (pid == 0) { // Child process
         close(pipefd[1]); // Close write end of pipe
-        
+        char buf[4096];
         // Redirect stdin to read from the pipe
         dup2(pipefd[0], STDIN_FILENO);
         close(pipefd[0]);
-        
-        // Execute a command that reads from stdin
-        // Example: 'wc -c' counts characters from input
-        execlp("wc", "wc", "-c", NULL);
-        
-        // If execlp fails
-        perror("execlp failed");
+        read(0, buf, sizeof(buf));
+	    write(1, buf, strlen(buf));
         return 1;
         
     } else { // Parent process
