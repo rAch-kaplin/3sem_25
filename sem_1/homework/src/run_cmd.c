@@ -35,7 +35,6 @@ void RunCmd(CommandLine *cline) {
             }
 
             execvp(cline->cmds[i].argv[0], cline->cmds[i].argv);
-            perror("execvp");
             exit(1);
         }
         else {

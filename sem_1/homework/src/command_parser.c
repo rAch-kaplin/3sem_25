@@ -6,11 +6,11 @@
 #define PIPE_SEPARATOR        "|"
 #define ARGUMENT_SEPARATORS   " \t\n"
 
-#define MAX_ARGS 256
+#define MAX_ARGS     256
 #define MAX_COMMANDS 16
 
 static char*    fixBeforeTok(char *tok, char *pipe_pos);
-static char*    fixAfterTok (char *tok, char *pipe_pos);
+static char*    fixAfterTok (char *pipe_pos);
 static CmdError InitCommand (Command *cmd);
 
 CommandLine* InitCommandLine() {
@@ -121,7 +121,7 @@ CmdError ParseCommandLine(const char *input, CommandLine *out) {
                 return ALLOC_ERR;
             }
 
-            char *after = fixAfterTok(tok, pipe_pos);
+            char *after = fixAfterTok(pipe_pos);
             if (after != NULL) {
                 if (AddArgument(cur, after) != OK) {
                     free(input_copy);
@@ -159,8 +159,7 @@ static char* fixBeforeTok(char *tok, char *pipe_pos) {
     return strncpy(dup, tok, len_str);
 }
 
-static char* fixAfterTok(char *tok, char *pipe_pos) {
-    assert(tok);
+static char* fixAfterTok(char *pipe_pos) {
     assert(pipe_pos);
 
     if (strlen(pipe_pos) == 1) {
