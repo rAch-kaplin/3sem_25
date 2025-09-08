@@ -24,12 +24,12 @@ void RunCmd(CommandLine *cline) {
         }
         else if (pid == 0) {
             if (prev_pipe_read != -1) {
-                dup2(prev_pipe_read, STDIN_FILENO);  
+                dup2(prev_pipe_read, STDIN_FILENO);  // Redirect stdin to read from previous pipe
                 close(prev_pipe_read);
             }
 
             if (i < cline->cmd_count - 1) {
-                dup2(pipeFd[1], STDOUT_FILENO);      
+                dup2(pipeFd[1], STDOUT_FILENO);   // Redirect stdout to write to current pipe
                 close(pipeFd[0]);                    
                 close(pipeFd[1]);                   
             }

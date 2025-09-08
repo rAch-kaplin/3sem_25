@@ -31,7 +31,7 @@ void FreeCommandLine(CommandLine *line) {
     if (line == NULL) return;
 
     for (size_t i = 0; i < line->cmd_count; i++) {
-        for (int j = 0; j < line->cmds[i].argc; j++) {
+        for (size_t j = 0; j < line->cmds[i].argc; j++) {
             free(line->cmds[i].argv[j]);
         }
         free(line->cmds[i].argv);
@@ -150,7 +150,7 @@ static char* fixBeforeTok(char *tok, char *pipe_pos) {
     assert(tok);
     assert(pipe_pos);
 
-    size_t len_str = pipe_pos - tok;
+    size_t len_str = (size_t)(pipe_pos - tok);
     char *dup = (char*)calloc(len_str + 1, sizeof(char));
     if (dup == NULL) {
         return NULL;

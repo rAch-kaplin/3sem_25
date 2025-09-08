@@ -18,6 +18,7 @@ int main()
         fprintf(stderr, "ParseCommandLine failed with error %d\n", err);
         return 1;
     }
+    free(string_cmd);
     
     #if 0
     PrintCommandLineTable(cline);
