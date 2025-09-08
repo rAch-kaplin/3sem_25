@@ -1,4 +1,4 @@
-1. Куда сохраняется контекст процесса? -- на стек ядра!
+1. Куда сохраняется (регистровый) контекст процесса? -- на стек ядра!
 ```text
      +---------------------------+   <---- Bottom of Kernel Stack (High Address)
      |                           |
@@ -63,12 +63,65 @@ CPU автоматически сохраняет часть контекста 
 - user-space %rsp (Stack Pointer) so it can switch back.
 - %rflags register.
 - %cs and %ss segment registers.
- 
+
+
 2.2. После чего передается управление на точку входа в обработчик вызова в ядре.
 Далее ядро сохраняет остальные регистры в прологе обработчика вызова, и начинает обрабатывать вызов.
+
 
 
 3. Восстановление контекста:
    
 - Загрузка регистров из стека ядра (по %rsp)
 - После -- инструкция sysretq (iretq) . CPU использует загруженные значения регистров для возврата из kernel mode в user mode.
+
+
+4. PCB в Linux (struct task_struct):
+```c
+struct task_struct {
+    // Process identification
+    pid_t pid;                    // Process ID
+    pid_t tgid;                   // Thread Group ID
+    pid_t ppid;                   // Parent PID
+    
+    // Process state
+    volatile long state;          // Process state (running, sleeping, etc.)
+    int exit_state;               // Exit state
+    int exit_code;                // Exit code
+    
+    // Scheduling information
+    int prio;                     // Static priority
+    int static_prio;              // Dynamic priority
+    struct sched_entity se;       // Scheduling entity
+    
+    // Memory management
+    struct mm_struct *mm;         // Memory descriptor
+    struct vm_area_struct *mmap;  // Memory areas
+    
+    // Files and I/O
+    struct files_struct *files;   // Open files
+    
+    // Signal handling
+    struct signal_struct *signal; // Signal information
+    sigset_t blocked;             // Blocked signals
+    
+    // Credentials and capabilities
+    const struct cred *cred;      // Process credentials
+    
+    // Relationships
+    struct task_struct *real_parent; // Real parent process
+    struct task_struct *parent;      // Parent process
+    struct list_head children;       // List of children
+    struct list_head sibling;        // Sibling processes
+    
+    // Thread information
+    struct thread_struct thread;     // Architecture-specific thread info
+    
+    // Timers and time accounting
+    cputime_t utime, stime;          // User and system time
+    
+    // ... many more fields (over 100 in modern kernels)
+};
+```
+
+
