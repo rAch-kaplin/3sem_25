@@ -151,6 +151,10 @@ static char* fixBeforeTok(char *tok, char *pipe_pos) {
     assert(pipe_pos);
 
     size_t len_str = (size_t)(pipe_pos - tok);
+    if (len_str == 0) {
+        return NULL;
+    }
+
     char *dup = (char*)calloc(len_str + 1, sizeof(char));
     if (dup == NULL) {
         return NULL;
