@@ -4,8 +4,8 @@
 #include <unistd.h>
 #include <time.h>
 
-#define NUM_ITERATIONS 1000000
-#define NUM_THREADS 4
+#define NUM_ITERATIONS 10000000
+#define NUM_THREADS 2 # также проэкспериментируйте с количеством потоков -- при их увеличении накладные расходы на спин-лок будут ожидаемо расти, и в итоге станут превышать таковые для mutex
 
 pthread_mutex_t mutex;
 pthread_spinlock_t spinlock;
