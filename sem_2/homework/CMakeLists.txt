@@ -26,13 +26,13 @@ endif()
 file(GLOB SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/src/*.c)
 file(GLOB HEADERS ${CMAKE_CURRENT_SOURCE_DIR}/include/*.h)
 
-add_executable(cmd_emulator ${SOURCES} ${HEADERS})
+add_executable(duplex_pipe ${SOURCES} ${HEADERS})
 
 target_include_directories(
-    cmd_emulator
+    duplex_pipe
     PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/
     ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 
-target_link_libraries(cmd_emulator)
+target_link_libraries(duplex_pipe)

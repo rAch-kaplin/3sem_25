@@ -35,7 +35,7 @@ void Run(DuplexPipe *self) {
 
         ssize_t n;
         while ((n = self->actions.rcv(self)) > 0) {
-            self->len = n;
+            self->len = (size_t)n;
             self->actions.snd(self);
         }
 
@@ -59,16 +59,14 @@ void Run(DuplexPipe *self) {
 
         ssize_t len = 0;
         while ((len = read(in, self->data, MAX_BUF_SIZE)) > 0) {
-            self->len = len;
+            self->len = (size_t)len;
             if (self->actions.snd(self) != len) break;
             if (self->actions.rcv(self) != len) break;
-            write(out, self->data, len);
+            write(out, self->data, (size_t)len);
         }
 
         close(in);
         close(out);
-
-        wait(NULL);
     }
 }
 
