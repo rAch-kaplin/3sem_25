@@ -24,7 +24,8 @@ typedef struct DuplexPipe {
         Ops     actions;
 } DuplexPipe;
 
-DuplexPipe* CreatePipe(size_t buffer_size);
-void        DestroyPipe(DuplexPipe *pipe);
+DuplexPipe* CreateDuplexPipe(size_t buffer_size);
+void        DestroyDuplexPipe(DuplexPipe *pipe);
+void		Run(DuplexPipe *self);
 
 #endif // DUPLEX_PIPE_H

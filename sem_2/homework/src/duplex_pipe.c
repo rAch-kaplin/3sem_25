@@ -3,6 +3,7 @@
 #include <assert.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/wait.h>
 
 #include <duplex_pipe.h>
 
@@ -73,7 +74,7 @@ void Run(DuplexPipe *self) {
 
 DuplexPipe* CreateDuplexPipe(size_t buffer_size) {
     DuplexPipe* self = (DuplexPipe*)calloc(1, sizeof(DuplexPipe));
-    if (pipe == NULL) {
+    if (self == NULL) {
         fprintf(stderr, "failed to allocate memory for Pipe\n");
         return NULL;
     }
