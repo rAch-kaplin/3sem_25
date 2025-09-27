@@ -4,6 +4,8 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
+#include <time.h>
+#include <sys/time.h>
 
 #include <duplex_pipe.h>
 
@@ -26,6 +28,9 @@ void Run(DuplexPipe *self) {
 
     pid_t pid = -1;
 
+	struct timespec start = {}, end = {};
+	clock_gettime(CLOCK_MONOTONIC, &start);
+
     if ((pid = fork()) == -1) {
         fprintf(stderr, "failed to create new process\n");
         return;
@@ -38,6 +43,9 @@ void Run(DuplexPipe *self) {
             self->len = (size_t)n;
             self->actions.snd(self);
         }
+
+		close(self->fd_back[0]);
+		close(self->fd_back[1]);
 
         exit(0);
     } else {
@@ -65,9 +73,26 @@ void Run(DuplexPipe *self) {
             write(out, self->data, (size_t)len);
         }
 
+		close(self->fd_direct[1]);
+		close(self->fd_back[0]);
+
         close(in);
         close(out);
     }
+
+	int status = 0;
+	waitpid(pid, &status, 0);
+	if (WIFEXITED(status)) {
+        int exit_code = WEXITSTATUS(status);
+        printf("Pgroramm exited with code %d\n", exit_code);
+    }
+
+	clock_gettime(CLOCK_MONOTONIC, &end);
+	double time_taken = 0.0;
+	time_taken = (double)(end.tv_sec - start.tv_sec) * 1e9;
+    time_taken = (time_taken + (double)(end.tv_nsec - start.tv_nsec)) * 1e-9;
+
+	printf("Time duration: %lg\n", time_taken);
 }
 
 DuplexPipe* CreateDuplexPipe(size_t buffer_size) {
