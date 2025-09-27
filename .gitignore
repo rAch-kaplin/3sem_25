@@ -2,3 +2,4 @@ build
 compile_commands.json
 parent.txt
 child.txt
+.cache
