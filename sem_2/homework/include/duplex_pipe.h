@@ -11,8 +11,11 @@ typedef struct DuplexPipe   DuplexPipe;
 typedef struct op_table     Ops;
 
 typedef struct op_table  {
-    ssize_t (*rcv)(DuplexPipe *self);
-    ssize_t (*snd)(DuplexPipe *self);
+    ssize_t     (*rcv)(DuplexPipe *self);
+    ssize_t     (*snd)(DuplexPipe *self);
+    void        (*close_child)(DuplexPipe *self);
+    void        (*close_parent)(DuplexPipe *self);
+    void        (*close_all)(DuplexPipe *self);
 } Ops;
 
 typedef struct DuplexPipe {

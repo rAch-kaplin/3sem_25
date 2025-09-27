@@ -23,6 +23,29 @@ static ssize_t WriteDuplex(DuplexPipe *pipe) {
     return write(pipe->fd_back[1], pipe->data, pipe->len);
 }
 
+static void CloseParentPipes(DuplexPipe *self) {
+    assert(self);
+
+    close(self->fd_direct[0]);
+    close(self->fd_back[1]);
+}
+
+static void CloseChildPipes(DuplexPipe *self) {
+    assert(self);
+
+    close(self->fd_direct[1]);
+    close(self->fd_back[0]);
+}
+
+static void CloseAllPipes(DuplexPipe *self) {
+    assert(self);
+
+    close(self->fd_direct[0]);
+    close(self->fd_direct[1]);
+    close(self->fd_back[0]);
+    close(self->fd_back[1]);
+}
+
 void Run(DuplexPipe *self) {
     assert(self);
 
@@ -35,8 +58,11 @@ void Run(DuplexPipe *self) {
         fprintf(stderr, "failed to create new process\n");
         return;
     } else if (pid == 0) {
-        close(self->fd_direct[1]);   // no write in parent -> child
-        close(self->fd_back[0]);     // no read from child -> parent
+        /*
+            no write in parent -> child
+            no read from child -> parent
+        */
+        self->actions.close_child(self);
 
         ssize_t n;
         while ((n = self->actions.rcv(self)) > 0) {
@@ -44,13 +70,11 @@ void Run(DuplexPipe *self) {
             self->actions.snd(self);
         }
 
-		close(self->fd_back[0]);
-		close(self->fd_back[1]);
+		self->actions.close_all(self);
 
         exit(0);
     } else {
-        close(self->fd_direct[0]);
-        close(self->fd_back[1]);
+        self->actions.close_parent(self);
 
         int in  = open("parent.txt", O_RDONLY);
         if (in == -1) {
@@ -73,8 +97,7 @@ void Run(DuplexPipe *self) {
             write(out, self->data, (size_t)len);
         }
 
-		close(self->fd_direct[1]);
-		close(self->fd_back[0]);
+		self->actions.close_all(self);
 
         close(in);
         close(out);
@@ -84,7 +107,9 @@ void Run(DuplexPipe *self) {
 	waitpid(pid, &status, 0);
 	if (WIFEXITED(status)) {
         int exit_code = WEXITSTATUS(status);
-        printf("Pgroramm exited with code %d\n", exit_code);
+		if (exit_code != 0) {
+			printf("Program exited with code %d\n", exit_code);
+		}
     }
 
 	clock_gettime(CLOCK_MONOTONIC, &end);
@@ -118,6 +143,9 @@ DuplexPipe* CreateDuplexPipe(size_t buffer_size) {
 
     self->actions.rcv = ReadDuplex;
     self->actions.snd = WriteDuplex;
+    self->actions.close_child = CloseChildPipes;
+    self->actions.close_parent = CloseParentPipes;
+    self->actions.close_all = CloseAllPipes;
 
     return self;
 }
