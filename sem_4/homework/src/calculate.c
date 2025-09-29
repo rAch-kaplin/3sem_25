@@ -69,7 +69,7 @@ double CalculateIntegral(double (*func)(double),
             data[index].y_max               = y_min + (j + 1) * y_step;
             data[index].func                = func;
             data[index].points_per_thread   = points_per_thread;
-            data[index].seed                = (unsigned int)time(NULL) + index;
+            data[index].seed                = (unsigned int)time(NULL) + (unsigned int)index;
 
             #if 0
             printf("Thread %d: [%.3f,%.3f]x[%.3f,%.3f]\n",
