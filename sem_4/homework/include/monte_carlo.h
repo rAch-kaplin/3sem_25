@@ -2,11 +2,17 @@
 #include <stdio.h>
 #include "stdlib.h"
 
+struct SharedData {
+    size_t          counter;
+    pthread_mutex_t mutex;
+};
+
 struct PthreadData {
-    double          (*func)(double);
-    double          x_min, x_max, y_min, y_max;
-    unsigned int    seed;
-    size_t          points_per_thread;
+    double              (*func)(double);
+    double              x_min, x_max, y_min, y_max;
+    unsigned int        seed;
+    size_t              points_per_thread;
+    struct SharedData   *shared_data;
 };
 
 double ExponentialFunc      (double x);

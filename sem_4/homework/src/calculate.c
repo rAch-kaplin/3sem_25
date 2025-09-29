@@ -7,9 +7,6 @@
 
 const size_t TOTAL_POINTS = 10000000;
 
-size_t          shared_counter = 0;
-pthread_mutex_t mutex;
-
 static void* MonteCarloThread(void *args);
 
 double ExponentialFunc(double x) {
@@ -32,9 +29,9 @@ static void* MonteCarloThread(void *args) {
         }
     }
 
-    pthread_mutex_lock  (&mutex);
-    shared_counter += local_count;
-    pthread_mutex_unlock(&mutex);
+    pthread_mutex_lock  (&data->shared_data->mutex);
+    data->shared_data->counter += local_count;
+    pthread_mutex_unlock(&data->shared_data->mutex);
 
     return NULL;
 }
@@ -43,7 +40,9 @@ double CalculateIntegral(double (*func)(double),
                          int num_threads_sqrt,
                          double x_min, double x_max,
                          double y_min, double y_max) {
-    pthread_mutex_init(&mutex, NULL);
+    struct SharedData shared = {0};
+
+    pthread_mutex_init(&shared.mutex, NULL);
 
     int num_threads = num_threads_sqrt * num_threads_sqrt;
     double scale_step   = 1.0 / num_threads_sqrt;
@@ -70,6 +69,7 @@ double CalculateIntegral(double (*func)(double),
             data[index].func                = func;
             data[index].points_per_thread   = points_per_thread;
             data[index].seed                = (unsigned int)time(NULL) + (unsigned int)index;
+            data[index].shared_data         = &shared;
 
             #if 0
             printf("Thread %d: [%.3f,%.3f]x[%.3f,%.3f]\n",
@@ -86,15 +86,15 @@ double CalculateIntegral(double (*func)(double),
         pthread_join(tid[i], NULL);
     }
 
-    free(data);
-    free(tid);
+    pthread_mutex_destroy(&shared.mutex);
 
     clock_gettime(CLOCK_MONOTONIC, &end);
     double duration = (double)(end.tv_sec  - start.tv_sec) +
                       (double)(end.tv_nsec - start.tv_nsec) / 1e9;
     printf("Time duration: %lg\n", duration);
 
-    pthread_mutex_destroy(&mutex);
+    free(data);
+    free(tid);
 
-    return (x_max - x_min) * (y_max - y_min) * (double)shared_counter / (double)TOTAL_POINTS;
+    return (x_max - x_min) * (y_max - y_min) * (double)shared.counter / (double)TOTAL_POINTS;
 }
