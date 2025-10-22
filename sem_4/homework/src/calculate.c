@@ -1,7 +1,9 @@
+#define _GNU_SOURCE
 #include <stdlib.h>
 #include <math.h>
 #include <assert.h>
 #include <time.h>
+#include <unistd.h>
 
 #include "monte_carlo.h"
 
@@ -13,11 +15,17 @@ double ExponentialFunc(double x) {
     return exp(x);
 }
 
+static int set_this_thread_to_core(int core_num);
+
 static void* MonteCarloThread(void *args) {
     assert(args);
 
     struct PthreadData *data = (struct PthreadData*)args;
-
+    int err = set_this_thread_to_core(data->assigned_core);
+    if (err != 0) {
+        printf("Failed to create pthread on core\n");
+        return NULL;
+    }
     size_t local_count  = 0;
 
     for (size_t i = 0; i < data->points_per_thread; i++) {
@@ -70,6 +78,7 @@ double CalculateIntegral(double (*func)(double),
             data[index].points_per_thread   = points_per_thread;
             data[index].seed                = (unsigned int)time(NULL) + (unsigned int)index;
             data[index].shared_data         = &shared;
+            data[index].assigned_core       = k;
 
             #if 0
             printf("Thread %d: [%.3f,%.3f]x[%.3f,%.3f]\n",
@@ -98,3 +107,19 @@ double CalculateIntegral(double (*func)(double),
 
     return (x_max - x_min) * (y_max - y_min) * (double)shared.counter / (double)TOTAL_POINTS;
 }
+
+int set_this_thread_to_core(int core_num) {
+    int num_cores = sysconf(_SC_NPROCESSORS_ONLN);
+    //printf("Total number of cores: %d\n", num_cores);
+    if (core_num < 0 || core_num >= num_cores) {
+        return -1;
+    }
+
+    cpu_set_t cpuset;
+    CPU_ZERO(&cpuset);
+    CPU_SET(core_num, &cpuset);
+
+    pthread_t current = pthread_self();
+    return pthread_setaffinity_np(current, sizeof(cpu_set_t), &cpuset);
+}
+

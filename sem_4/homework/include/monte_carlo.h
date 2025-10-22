@@ -13,6 +13,7 @@ struct PthreadData {
     unsigned int        seed;
     size_t              points_per_thread;
     struct SharedData   *shared_data;
+    int                 assigned_core;
 };
 
 double ExponentialFunc      (double x);
