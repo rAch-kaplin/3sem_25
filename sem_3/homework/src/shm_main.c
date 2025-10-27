@@ -19,7 +19,7 @@ int main() {
     int shmid = shmget(shm_key, sizeof(SharedData), IPC_CREAT | 0666);
     if (shmid == -1) {
         fprintf(stderr, "failed to get shm\n");
-        close(fd_in); 
+        close(fd_in);
         return 1;
     }
 
@@ -89,7 +89,7 @@ int main() {
         clock_gettime(CLOCK_MONOTONIC, &start);
 
         ssize_t n;
-        while ((n = read(fd_in, shd->buffer, BUF_SIZE)) > 0) {
+        while ((n = read(fd_in, shd->buffer, SHM_SIZE)) > 0) {
             if (!sem_wait(semid, 0)) break;
             shd->buf_size = (size_t)n;
             shd->eof = 0;
@@ -115,7 +115,7 @@ int main() {
 
         shmdt(shd);
         shmctl(shmid, IPC_RMID, NULL);
-        semctl(semid, IPC_RMID, 0);
+        semctl(semid, 0, IPC_RMID, NULL);
     }
 
     return 0;
@@ -125,6 +125,7 @@ bool sem_wait(int semid, int id) {
     struct sembuf sb = {
         .sem_num    = (unsigned short)id,
         .sem_op     = -1,
+        .sem_flg    = 0,
     };
 
     return semop(semid, &sb, 1) == 0;
@@ -134,6 +135,7 @@ bool sem_signal(int semid, int id) {
     struct sembuf sb = {
         .sem_num    = (unsigned short)id,
         .sem_op     = 1,
+        .sem_flg    = 0,
     };
 
     return semop(semid, &sb, 1) == 0;

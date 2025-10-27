@@ -1,41 +1,34 @@
 #!/bin/bash
 
-rm -f input.txt output.txt *.txt
+check_md5() {
+    local test_name="$1"
+    local block_size="$2"
+    local block_count="$3"
 
-echo "=== Test 1: 8196 bytes ==="
-dd if=/dev/urandom of=input.txt bs=8196 count=1 status=none
-./build/shm_run
-parent_md5=$(md5sum input.txt | cut -d' ' -f1)
-child_md5=$(md5sum output.txt | cut -d' ' -f1)
-if [ "$parent_md5" = "$child_md5" ]; then
-    echo "OK"
-else
-    echo "FAIL"
-    exit 1
-fi
+    echo "=== $test_name ==="
+    rm -f input.txt output.txt
 
-echo "=== Test 2: 4 MB ==="
-dd if=/dev/urandom of=input.txt bs=1M count=4 status=none
-./build/shm_run
-parent_md5=$(md5sum input.txt | cut -d' ' -f1)
-child_md5=$(md5sum output.txt | cut -d' ' -f1)
-if [ "$parent_md5" = "$child_md5" ]; then
-    echo "OK"
-else
-    echo "FAIL"
-    exit 1
-fi
+    dd if=/dev/urandom of=input.txt bs="$block_size" count="$block_count" status=none
+    ./build/mq_run 2>&1
 
-echo "=== Test 3: 2 GB ==="
-dd if=/dev/urandom of=input.txt bs=1M count=2048 status=none
-./build/shm_run
-parent_md5=$(md5sum input.txt | cut -d' ' -f1)
-child_md5=$(md5sum output.txt | cut -d' ' -f1)
-if [ "$parent_md5" = "$child_md5" ]; then
-    echo "OK"
-else
-    echo "FAIL"
-    exit 1
-fi
+    parent_md5=$(md5sum input.txt | cut -d' ' -f1)
+    child_md5=$(md5sum output.txt | cut -d' ' -f1)
 
-echo "All tests passed!"
+    if [ "$parent_md5" = "$child_md5" ]; then
+        echo "OK"
+        return 0
+    else
+        echo "FAIL"
+        echo "Parent MD5: $parent_md5"
+        echo "Child MD5:  $child_md5"
+        rm -f input.txt output.txt
+        return 1
+    fi
+}
+
+# Run tests
+check_md5 "Test 1: 8196 bytes" 8196 1
+check_md5 "Test 2: 4 MB" 1048576 4          # 1MB * 4 = 4MB
+check_md5 "Test 3: 2 GB" 1048576 2048       # 1MB * 2048 = 2GB
+
+rm -f input.txt output.txt

@@ -23,9 +23,14 @@ if(ENABLE_SANITIZERS)
     )
 endif()
 
-set(SOURCES src/shm_main.c)
+set(SOURCES src/shm_main.c src/fifo_main.c)
 set(HEADERS include/common.h include/shm.h)
 
-add_executable(shm_run ${SOURCES} ${HEADERS})
-
+add_executable(shm_run src/shm_main.c ${HEADERS})
 target_include_directories(shm_run PRIVATE include)
+
+add_executable(fifo_run src/fifo_main.c ${HEADERS})
+target_include_directories(fifo_run PRIVATE include)
+
+add_executable(mq_run src/fifo_main.c ${HEADERS})
+target_include_directories(mq_run PRIVATE include)

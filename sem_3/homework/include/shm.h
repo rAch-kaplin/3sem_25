@@ -4,10 +4,12 @@
 #include "common.h"
 #include <stdbool.h>
 
+#define SHM_SIZE (4096 * 1024)
+
 typedef struct {
     size_t  buf_size;
-    char    buffer[BUF_SIZE];
-    char    eof;
+    char    buffer[SHM_SIZE];
+    bool    eof;
 } SharedData;
 
 bool sem_wait   (int semid, int id);
