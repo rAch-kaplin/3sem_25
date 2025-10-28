@@ -1,5 +1,7 @@
 #include "common.h"
 
+#include <sys/msg.h>
+
 #define MQ_SIZE (4096)
 
 struct MQData {
@@ -38,7 +40,7 @@ int main() {
     }
     *eof_flag = 0;
 
-    key_t mq_key =ftok("output.txt", 64);
+    key_t mq_key =ftok("input.txt", 64);
     if (mq_key == -1) {
         fprintf(stderr, "ftok failed for message queue\n");
         shmdt(eof_flag);
@@ -90,7 +92,7 @@ int main() {
 
             size_t written = 0;
             while (written < (size_t)n) {
-                ssize_t w = write(fd_out, msg.mtext + written, n - written);
+                ssize_t w = write(fd_out, msg.mtext + written, (size_t)n - written);
                 if (w <= 0) {
                     fprintf(stderr, "failed to write to output.txt\n");
                     close(fd_out);
@@ -108,7 +110,7 @@ int main() {
 
         ssize_t n;
         while ((n = read(fd_in, msg.mtext, MQ_SIZE)) > 0) {
-            if (msgsnd(mqid, &msg, n, 0) == -1) {
+            if (msgsnd(mqid, &msg, (size_t)n, 0) == -1) {
                 fprintf(stderr, "msgsnd failed\n");
                 break;
             }

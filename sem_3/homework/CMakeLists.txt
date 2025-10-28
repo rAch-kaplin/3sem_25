@@ -32,5 +32,5 @@ target_include_directories(shm_run PRIVATE include)
 add_executable(fifo_run src/fifo_main.c ${HEADERS})
 target_include_directories(fifo_run PRIVATE include)
 
-add_executable(mq_run src/fifo_main.c ${HEADERS})
+add_executable(mq_run src/mq_main.c ${HEADERS})
 target_include_directories(mq_run PRIVATE include)

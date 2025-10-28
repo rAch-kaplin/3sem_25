@@ -5,7 +5,7 @@
 int main() {
     int fd_in = open("input.txt", O_RDONLY);
     if (fd_in == -1) {
-        fprintf(stderr, "failed to open input.txt file\n");
+        fprintf(stderr, "failed to open input.txt\n");
         return 1;
     }
 
@@ -39,8 +39,6 @@ int main() {
         return 1;
     }
 
-    // sem[0] = 1 - buf is empty, can write
-    // sem[1] = 0 - buf is not empty, can't write
     if (semctl(semid, 0, SETVAL, 1) == -1 || semctl(semid, 1, SETVAL, 0) == -1) {
         fprintf(stderr, "failed to set val sem\n");
         shmdt(shd);
@@ -81,7 +79,7 @@ int main() {
             while (written < bytes_to_write) {
                 ssize_t n = write(fd_out, buf_ptr + written, bytes_to_write - written);
                 if (n <= 0) {
-                    fprintf(stderr, "failed to write data \n");
+                    fprintf(stderr, "failed to write data\n");
                     exit(1);
                 }
                 written += (size_t)n;
