@@ -9,7 +9,7 @@ check_md5() {
     rm -f input.txt output.txt
 
     dd if=/dev/urandom of=input.txt bs="$block_size" count="$block_count" status=none
-    ./build/mq_run 2>&1
+    ./build/shm_run 2>&1
 
     parent_md5=$(md5sum input.txt | cut -d' ' -f1)
     child_md5=$(md5sum output.txt | cut -d' ' -f1)
