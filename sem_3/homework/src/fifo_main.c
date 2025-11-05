@@ -20,13 +20,11 @@ int main() {
         return 1;
     }
 
-    if (mkfifo(FIFO_NAME, 0666) == -1) {
-        if (errno != EEXIST) {
-            perror("mkfifo");
-            free(buffer);
-            close(fd_in);
-            return 1;
-        }
+    if (mknod(FIFO_NAME, S_IFIFO | 0666, 0) == -1) {
+        fprintf(stderr, "failed to mknod\n");
+        free(buffer);
+        close(fd_in);
+        return 1;
     }
 
     struct timespec start = {}, end = {};
@@ -71,6 +69,7 @@ int main() {
 
         close(fd_out);
         close(fd_fifo);
+        unlink(FIFO_NAME);
         exit(0);
     } else {
         int fd_fifo = open(FIFO_NAME, O_WRONLY);
