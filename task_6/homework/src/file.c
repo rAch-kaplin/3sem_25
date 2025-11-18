@@ -1,4 +1,5 @@
 #include "common.h"
+#include "file.h"
 
 #include <magic.h>
 #include <string.h>
@@ -8,7 +9,7 @@
 #include <string.h>
 #include <limits.h>
 
-bool is_test_file(const char *filename) {
+bool is_text_file(const char *filename) {
     magic_t magic = magic_open(MAGIC_MIME_TYPE);
     if (magic == NULL) {
         fprintf(stderr, "failed to magic open file\n");
@@ -38,7 +39,7 @@ size_t search_files_in_dir(const char *path, char ***files) {
         return count;
     }
 
-    char fullpath[256] = "";
+    char fullpath[PATH_MAX] = "";
     struct stat info;
     struct dirent *e;
 
@@ -56,7 +57,18 @@ size_t search_files_in_dir(const char *path, char ***files) {
         if (S_ISDIR(info.st_mode)) {
             search_files_in_dir(fullpath, files);
         } else if (S_ISREG(info.st_mode)) {
-            if (is_test_file(fullpath)) {
+            // Skip debug.log files created by the daemon
+            const char *basename = strrchr(fullpath, '/');
+            if (basename != NULL) {
+                basename++; // Skip the '/'
+            } else {
+                basename = fullpath;
+            }
+            if (strcmp(basename, "debug.log") == 0) {
+                continue;
+            }
+
+            if (is_text_file(fullpath)) {
                 *files = (char**)realloc(*files, (count + 1) * sizeof(char*));
                 if (*files == NULL) {
                     perror("realloc");
