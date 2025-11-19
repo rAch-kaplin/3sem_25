@@ -18,17 +18,10 @@
 typedef struct {
     char    path[MAX_PATH_LEN];
     time_t  mtime;
-    //off_t   size;
-    size_t  size;
+    off_t   size;
+    // size_t  size;
     bool    exists;
 } FileInfo;
-
-// typedef struct {
-//     char    file_path[MAX_PATH_LEN];
-//     char    diff_path[MAX_PATH_LEN];
-//     time_t  timestamp;
-//     int     sample_num;
-// } BackupEntry;
 
 // Structure to track inotify watch descriptors and their paths
 typedef struct {

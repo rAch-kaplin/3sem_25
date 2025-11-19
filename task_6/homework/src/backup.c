@@ -126,7 +126,12 @@ int create_full_backup(MonitorState *state) {
             }
         }
 
-        snprintf(backup_path, sizeof(backup_path), "%s/full_%s", BACKUP_DIR, relative_path);
+
+        int wn = snprintf(backup_path, sizeof(backup_path), "%s/full_%s", BACKUP_DIR, relative_path);
+        if (wn >= (int)sizeof(backup_path)) {
+            ELOG("Backup path too long, truncated! File: %s\n", relative_path);
+            continue;
+        }
 
         // Copy file
         FILE *src = fopen(files[i], "r");
@@ -358,8 +363,13 @@ int create_incremental_backup(MonitorState *state) {
         }
 
         // Find old backup file
-        snprintf(old_backup_path, sizeof(old_backup_path), "%s/full_%s", BACKUP_DIR, relative_path);
-        struct stat st;
+        int wn = snprintf(old_backup_path, sizeof(old_backup_path), "%s/full_%s", BACKUP_DIR, relative_path);
+        if (wn >= (int)sizeof(old_backup_path)) {
+            ELOG("Old backup path too long, truncated! File: %s\n", relative_path);
+            continue;
+        }
+
+        struct stat st = {};
         if (stat(old_backup_path, &st) != 0) {
             // No old backup, create full backup for this file
             FILE *src = fopen(changed_files[i], "r");
@@ -367,7 +377,7 @@ int create_incremental_backup(MonitorState *state) {
                 FILE *dst = fopen(old_backup_path, "w");
                 if (dst != NULL) {
                     char buffer[4096];
-                    size_t n;
+                    size_t n = 0;
                     while ((n = fread(buffer, 1, sizeof(buffer), src)) > 0) {
                         fwrite(buffer, 1, n, dst);
                     }
@@ -378,7 +388,12 @@ int create_incremental_backup(MonitorState *state) {
         }
 
         // Create diff
-        snprintf(diff_path, sizeof(diff_path), "%s/diff_%s_sample_%d", BACKUP_DIR, relative_path, state->current_sample);
+        int wn_diff = snprintf(diff_path, sizeof(diff_path), "%s/diff_%s_sample_%d", BACKUP_DIR, relative_path, state->current_sample);
+        if (wn_diff >= (int)sizeof(old_backup_path)) {
+            ELOG("Diff path too long, truncated! File: %s\n", relative_path);
+            continue;
+        }
+
         DLOG("Creating diff: %s -> %s (sample %d)\n", changed_files[i], diff_path, state->current_sample);
         save_diff(old_backup_path, changed_files[i], diff_path, now, state->current_sample);
 

@@ -15,16 +15,16 @@ set(WARNING_FLAGS
     -Wno-missing-field-initializers -Wno-narrowing
 )
 
-set(CMAKE_C_FLAGS_DEBUG "-D_DEBUG -ggdb3 -O0 -fstack-protector -fno-omit-frame-pointer -pie -fPIE -Werror=vla")
+set(CMAKE_C_FLAGS_DEBUG   "-D_DEBUG -ggdb3 -O0 -fstack-protector -fno-omit-frame-pointer -Werror=vla")
 set(CMAKE_C_FLAGS_RELEASE "-O2")
 
-if(ENABLE_SANITIZERS)
-    set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG}
+if(ENABLE_SANITIZERS AND CMAKE_BUILD_TYPE STREQUAL "Debug")
+    set(SAN_FLAGS
         -fsanitize=address,alignment,bool,bounds,enum,float-cast-overflow
         -fsanitize=float-divide-by-zero,integer-divide-by-zero,leak
         -fsanitize=nonnull-attribute,null,object-size,return,shift
         -fsanitize=signed-integer-overflow,undefined,unreachable,vla-bound
-    ")
+    )
 endif()
 
 file(GLOB SOURCES
@@ -37,7 +37,13 @@ file(GLOB HEADERS
     "logger/log.h"
 )
 
-add_executable(daemon ${SOURCES} ${HEADERS})
+add_executable(daemon ${SOURCES})
+
 target_include_directories(daemon PRIVATE include logger)
-target_link_libraries(daemon PRIVATE magic)
 target_compile_options(daemon PRIVATE ${WARNING_FLAGS})
+target_link_libraries(daemon PRIVATE magic)
+
+if(SAN_FLAGS)
+    target_compile_options(daemon PRIVATE ${SAN_FLAGS})
+    target_link_options(daemon PRIVATE ${SAN_FLAGS})
+endif()
