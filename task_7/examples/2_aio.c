@@ -1,23 +1,24 @@
-#include <aiocb.h>
+#include <aio.h>
 #include <fcntl.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <errno.h>
 
 void aioSigHandler(int sig, siginfo_t *si, void *ucontext) {
     if (si->si_code == SI_ASYNCIO) {
         printf("AIO completion signal received\n");
         // Check the status of the AIO request
-        int error = aio_error(&aiocb);
+        int error = aio_error((struct aiocb*) si->si_value.sival_ptr);
         if (error == EINPROGRESS) {
             printf("AIO request still in progress\n");
         } else if (error == 0) {
-            int bytes_read = aio_return(&aiocb);
+            int bytes_read = aio_return((struct aiocb*) si->si_value.sival_ptr);
             printf("AIO read completed: %d bytes read\n", bytes_read);
             // Handle the read data
-            buffer[bytes_read] = '\0';
-            printf("Read: %s\n", buffer);
+            //buffer[bytes_read] = '\0';
+            //printf("Read: %s\n", buffer);
         } else {
             perror("aio_error");
         }
@@ -60,7 +61,8 @@ int main() {
 
     // Wait for the signal or perform other tasks
     while (1) {
-        pause();
+        printf("adfasfsdf\n");
+        usleep(100000000);
     }
 
     return 0;
