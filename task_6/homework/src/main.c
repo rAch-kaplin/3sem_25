@@ -39,9 +39,6 @@ int main(int argc, char **argv) {
 
         daemonize();
 
-        // Reinitialize logger after daemonization (if needed)
-        // Logger will write to file
-
         result = run_daemon(monitor_state);
     } else {
 

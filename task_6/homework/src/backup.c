@@ -44,11 +44,11 @@ int save_diff(const char *old_file, const char *new_file,
     }
 
     // Write metadata
-    fprintf(out, "# Timestamp: %ld\n", timestamp);
-    fprintf(out, "# Sample: %d\n", sample_num);
-    fprintf(out, "# Old file: %s\n", old_file);
-    fprintf(out, "# New file: %s\n", new_file);
-    fprintf(out, "---\n");
+    fprintf(out, "# Timestamp: %ld\n"
+                 "# Sample: %d\n"
+                 "# Old file: %s\n"
+                 "# New file: %s\n"
+                 "---\n", timestamp, sample_num, old_file, new_file);
 
     // Write diff content
     while (fgets(line, sizeof(line), fp) != NULL) {
@@ -173,7 +173,7 @@ int create_full_backup(MonitorState *state) {
 
 int get_changed_files_from_queue(MonitorState *state, char ***changed_files, size_t *count) {
     *count = state->changed_files_count;
-    *changed_files = NULL;
+    //*changed_files = NULL;
 
     if (state->changed_files_count == 0) {
         return 0;
