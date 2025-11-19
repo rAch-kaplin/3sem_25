@@ -13,13 +13,12 @@
 
 #define MAX_PATH_LEN                4096
 #define MAX_FILES                   1000
-#define DEFAULT_SAMPLE_PERIOD_MS    5000
+#define DEFAULT_SAMPLE_PERIOD_MS    10000
 
 typedef struct {
     char    path[MAX_PATH_LEN];
     time_t  mtime;
     off_t   size;
-    // size_t  size;
     bool    exists;
 } FileInfo;
 

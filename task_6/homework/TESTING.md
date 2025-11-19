@@ -87,3 +87,12 @@ echo "show_k_diffs 2" > /tmp/daemon_monitor_fifo
 # Изменить период семплирования на 2 секунды
 echo "set_period 2000" > /tmp/daemon_monitor_fifo
 ```
+## Как убить процесс
+```
+# Посмотреть <PID>
+ps aux | grep daemon
+
+# Убить его
+
+kill <PID>
+```
