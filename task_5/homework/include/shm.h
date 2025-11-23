@@ -40,6 +40,9 @@ typedef struct {
     size_t  file_size;
     size_t  bytes_read;
     int     attempts;
+
+    int fd_in;
+    int fd_out;
 } SharedData;
 
 extern SharedData *sh_data;

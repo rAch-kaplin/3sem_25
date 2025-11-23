@@ -32,12 +32,12 @@ void producer_handler(int sig __attribute__((unused)), siginfo_t *info, void *uc
         return;
     }
 
-    ssize_t curr_size = read(0, sh_data->producer_chunks[chunk_num], CHUNK_SIZE);
+    ssize_t curr_size = read(sh_data->fd_in, sh_data->producer_chunks[chunk_num], CHUNK_SIZE);
 
     while (curr_size == 0 &&
            sh_data->bytes_read < sh_data->file_size &&
            sh_data->attempts < MAX_ATTEMPTS) {
-        curr_size = read(0, sh_data->producer_chunks[chunk_num], CHUNK_SIZE);
+        curr_size = read(sh_data->fd_in, sh_data->producer_chunks[chunk_num], CHUNK_SIZE);
         sh_data->attempts++;
     }
 
@@ -45,7 +45,7 @@ void producer_handler(int sig __attribute__((unused)), siginfo_t *info, void *uc
         sh_data->consumer_chunks[chunk_num].chunk_size = (size_t)curr_size;
         sh_data->bytes_read += (size_t)curr_size;
 
-        union sigval sv;
+        union sigval sv = {};
         sv.sival_int = chunk_num;
         if (sigqueue(sh_data->pid, SIG_CONSUMER, sv) == -1) {
             fprintf(stderr, "sigqueue to consumer: %s\n", strerror(errno));
@@ -60,7 +60,7 @@ void producer_handler(int sig __attribute__((unused)), siginfo_t *info, void *uc
             sh_data->producer_ended = PROD_END_FAIL;
         }
 
-        struct sigaction sa;
+        struct sigaction sa = {};
         sa.sa_handler = SIG_IGN;
         sigemptyset(&sa.sa_mask);
         sa.sa_flags = 0;
@@ -88,7 +88,7 @@ void consumer_handler(int sig __attribute__((unused)), siginfo_t *info, void *uc
 
     size_t bytes_written_total = 0;
     while (bytes_written_total < bytes_to_write) {
-        ssize_t n = write(1, buf_ptr + bytes_written_total,
+        ssize_t n = write(sh_data->fd_out, buf_ptr + bytes_written_total,
                          bytes_to_write - bytes_written_total);
         if (n == -1) {
             fprintf(stderr, "write: %s\n", strerror(errno));
@@ -106,9 +106,10 @@ void consumer_handler(int sig __attribute__((unused)), siginfo_t *info, void *uc
 
     union sigval sv = {};
     sv.sival_int = chunk_num;
+
     if (sigqueue(sh_data->ppid, SIG_PRODUCER, sv) == -1) {
         fprintf(stderr, "sigqueue to producer: %s\n", strerror(errno));
         sh_data->consumer_ended = CONS_END_FAIL;
         return;
-    }   
+    }
 }

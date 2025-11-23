@@ -9,7 +9,7 @@ test_method() {
     rm -f input.txt output.txt
 
     dd if=/dev/urandom of=input.txt bs="$block_size" count="$block_count" status=none
-    ./build/run input.txt output.txt 2>&1
+    ./build/run 2>&1
 
     if [ -f "output.txt" ]; then
         md5_in=$(md5sum input.txt | cut -d' ' -f1)

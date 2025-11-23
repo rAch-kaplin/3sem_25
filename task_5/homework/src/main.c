@@ -7,44 +7,33 @@
 static size_t get_file_size(const char *filename) {
     struct stat st;
     if (stat(filename, &st) == -1) {
-        fprintf(stderr, "stat: %s\n", strerror(errno));
+        fprintf(stderr, "failed to get file size\n");
         return 0;
     }
     return (size_t)st.st_size;
 }
 
-int main(int argc, char *argv[]) {
-    const char *input_file = (argc > 1) ? argv[1] : "input.txt";
-    const char *output_file = (argc > 2) ? argv[2] : "output.txt";
+int main() {
+    int fd_in = open("input.txt", O_RDONLY);
+    if (fd_in == -1) {
+        fprintf(stderr, "failed to open input.txt\n");
+        return 1;
+    }
 
-    size_t file_size = get_file_size(input_file);
+    size_t file_size = get_file_size("input.txt");
     if (file_size == 0) {
         fprintf(stderr, "failed to get file size or file is empty\n");
+        close(fd_in);
         return 1;
     }
 
-    FILE *input_fp = freopen(input_file, "r", stdin);
-    if (input_fp == NULL) {
-        fprintf(stderr, "freopen input: %s\n", strerror(errno));
-        return 1;
-    }
-
-    FILE *output_fp = freopen(output_file, "w", stdout);
-    if (output_fp == NULL) {
-        fprintf(stderr, "freopen output: %s\n", strerror(errno));
-        fclose(input_fp);
-        return 1;
-    }
-
-    key_t shm_key = ftok(".", 'S');
+    key_t shm_key = ftok("input.txt", 65);
     if (shm_key == -1) {
-        fprintf(stderr, "ftok: %s\n", strerror(errno));
-        fclose(input_fp);
-        fclose(output_fp);
+        fprintf(stderr, "ftok error\n");
+        close(fd_in);
         return 1;
     }
 
-    // Удаляем старый сегмент если существует
     int old_shmid = shmget(shm_key, 0, 0666);
     if (old_shmid != -1) {
         shmctl(old_shmid, IPC_RMID, NULL);
@@ -54,17 +43,15 @@ int main(int argc, char *argv[]) {
 
     int shmid = shmget(shm_key, shm_total_size, IPC_CREAT | 0666);
     if (shmid == -1) {
-        fprintf(stderr, "shmget: %s\n", strerror(errno));
-        fclose(input_fp);
-        fclose(output_fp);
+        fprintf(stderr, "failed to get shm\n");
+        close(fd_in);
         return 1;
     }
 
     char *shm_ptr = (char *)shmat(shmid, NULL, 0);
     if (shm_ptr == (void *)-1) {
-        fprintf(stderr, "shmat: %s\n", strerror(errno));
-        fclose(input_fp);
-        fclose(output_fp);
+        fprintf(stderr, "failed to get shd ptr\n");
+        close(fd_in);
         return 1;
     }
 
@@ -77,6 +64,7 @@ int main(int argc, char *argv[]) {
     sh_data->file_size = file_size;
     sh_data->bytes_read = 0;
     sh_data->attempts = 0;
+    sh_data->fd_in = fd_in;
 
     for (int i = 0; i < CHUNKS; i++) {
         sh_data->producer_chunks[i] = sh_data->buffer + i * CHUNK_SIZE;
@@ -84,60 +72,67 @@ int main(int argc, char *argv[]) {
         sh_data->consumer_chunks[i].chunk_size = 0;
     }
 
-    struct sigaction sa;
+    struct sigaction sa = {};
     sa.sa_sigaction = producer_handler;
     sigemptyset(&sa.sa_mask);
     sa.sa_flags = SA_SIGINFO;
+
     if (sigaction(SIG_PRODUCER, &sa, NULL) == -1) {
-        fprintf(stderr, "sigaction SIG_PRODUCER: %s\n", strerror(errno));
+        fprintf(stderr, "sigaction SIG_PRODUCER failed\n");
         shmdt(shm_ptr);
         shmctl(shmid, IPC_RMID, NULL);
-        fclose(input_fp);
-        fclose(output_fp);
+        close(fd_in);
         return 1;
     }
 
     sa.sa_sigaction = consumer_handler;
+
     if (sigaction(SIG_CONSUMER, &sa, NULL) == -1) {
-        fprintf(stderr, "sigaction SIG_CONSUMER: %s\n", strerror(errno));
+        fprintf(stderr, "sigaction SIG_CONSUMER failed\n");
         shmdt(shm_ptr);
         shmctl(shmid, IPC_RMID, NULL);
-        fclose(input_fp);
-        fclose(output_fp);
+        close(fd_in);
         return 1;
     }
 
     sa.sa_flags = 0;
     sa.sa_handler = sig_exit_handler;
+
     if (sigaction(SIG_EXIT, &sa, NULL) == -1) {
-        fprintf(stderr, "sigaction SIG_EXIT: %s\n", strerror(errno));
+        fprintf(stderr, "sigaction SIG_EXIT failed\n");
         shmdt(shm_ptr);
         shmctl(shmid, IPC_RMID, NULL);
-        fclose(input_fp);
-        fclose(output_fp);
+        close(fd_in);
         return 1;
     }
 
-    struct timespec start, end;
+    struct timespec start = {}, end = {};
 
     pid_t pid = fork();
     if (pid < 0) {
-        fprintf(stderr, "fork: %s\n", strerror(errno));
+        fprintf(stderr, "failed to fork\n");
         shmdt(shm_ptr);
         shmctl(shmid, IPC_RMID, NULL);
-        fclose(input_fp);
-        fclose(output_fp);
+        close(fd_in);
         return 1;
     }
 
     if (pid == 0) {
+        int fd_out = open("output.txt", O_WRONLY | O_CREAT | O_TRUNC, 0644);
+        if (fd_out == -1) {
+            fprintf(stderr, "failed to open output.txt file\n");
+            exit(1);
+        }
+
         sh_data->ppid = getppid();
+        sh_data->fd_out = fd_out;
 
         union sigval sv = {};
         for (int i = 0; i < CHUNKS; i++) {
             sv.sival_int = i;
             if (sigqueue(sh_data->ppid, SIG_PRODUCER, sv) == -1) {
-                fprintf(stderr, "sigqueue initial producer: %s\n", strerror(errno));
+                fprintf(stderr, "sigqueue initial producer failed\n");
+                close(fd_out);
                 exit(1);
             }
         }
@@ -148,6 +143,7 @@ int main(int argc, char *argv[]) {
 
         int exit_code = (sh_data->consumer_ended == CONS_END_SUCC) ? 0 : 1;
 
+        close(fd_out);
         shmdt(shm_ptr);
 
         exit(exit_code);
@@ -166,13 +162,12 @@ int main(int argc, char *argv[]) {
 
         clock_gettime(CLOCK_MONOTONIC, &end);
 
-        double time_taken = (double)(end.tv_sec - start.tv_sec) +
-                           (double)(end.tv_nsec - start.tv_nsec) * 1e-9;
+        double time_taken = (double)(end.tv_sec - start.tv_sec) * 1e9;
+        time_taken = (time_taken + (double)(end.tv_nsec - start.tv_nsec)) * 1e-9;
 
         fprintf(stderr, "Time duration: %.6f seconds\n", time_taken);
 
-        fclose(input_fp);
-        fclose(output_fp);
+        close(fd_in);
 
         shmdt(shm_ptr);
         shmctl(shmid, IPC_RMID, NULL);
