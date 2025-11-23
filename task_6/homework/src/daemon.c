@@ -142,6 +142,8 @@ void cleanup_monitor_state(MonitorState *state) {
         free(state->changed_files_queue);
         state->changed_files_queue = NULL;
     }
+
+    free(state);
 }
 
 const char* get_watch_path(MonitorState *state, int wd) {

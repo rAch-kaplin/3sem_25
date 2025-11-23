@@ -136,13 +136,13 @@ int create_full_backup(MonitorState *state) {
         // Copy file
         FILE *src = fopen(files[i], "r");
         if (src == NULL) {
-            WLOG("Failed to open source file for backup: %s\n", files[i]);
+            ELOG("Failed to open source file for backup: %s\n", files[i]);
             continue;
         }
 
         FILE *dst = fopen(backup_path, "w");
         if (dst == NULL) {
-            WLOG("Failed to open backup file for writing: %s\n", backup_path);
+            ELOG("Failed to open backup file for writing: %s\n", backup_path);
             fclose(src);
             continue;
         }
@@ -179,7 +179,7 @@ int get_changed_files_from_queue(MonitorState *state, char ***changed_files, siz
         return 0;
     }
 
-    *changed_files = (char**)malloc(state->changed_files_count * sizeof(char*));
+    *changed_files = (char**)calloc(state->changed_files_count, sizeof(char*));
     if (*changed_files == NULL) {
         return -1;
     }
@@ -241,7 +241,7 @@ int find_changed_files(MonitorState *state, char ***changed_files, size_t *count
                     // File changed
                     *changed_files = (char**)realloc(*changed_files, (*count + 1) * sizeof(char*));
                     if (*changed_files == NULL) {
-                        perror("realloc");
+                        ELOG("failed realloc");
                         goto cleanup;
                     }
                     (*changed_files)[*count] = strdup(current_files[i]);
@@ -259,7 +259,7 @@ int find_changed_files(MonitorState *state, char ***changed_files, size_t *count
         if (!found) {
             *changed_files = (char**)realloc(*changed_files, (*count + 1) * sizeof(char*));
             if (*changed_files == NULL) {
-                perror("realloc");
+                ELOG("failed realloc");
                 goto cleanup;
             }
             (*changed_files)[*count] = strdup(current_files[i]);
@@ -270,7 +270,7 @@ int find_changed_files(MonitorState *state, char ***changed_files, size_t *count
                 state->capacity = state->capacity == 0 ? MAX_FILES : state->capacity * 2;
                 state->files = (FileInfo*)realloc(state->files, state->capacity * sizeof(FileInfo));
                 if (state->files == NULL) {
-                    perror("realloc");
+                    ELOG("failed realloc");
                     goto cleanup;
                 }
             }
@@ -441,7 +441,7 @@ int get_diff_content(const char *diff_path, char **content, size_t *len) {
         return -1;
     }
 
-    *content = (char*)malloc((size_t)file_size + 1);
+    *content = (char*)calloc((size_t)file_size + 1, sizeof(char));
     if (*content == NULL) {
         fclose(fp);
         return -1;
