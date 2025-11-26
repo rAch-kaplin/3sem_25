@@ -2,16 +2,19 @@
 #include "shm.h"
 #include <sys/stat.h>
 #include <string.h>
-#include <errno.h>
 
 static size_t get_file_size(const char *filename) {
-    struct stat st;
+    struct stat st = {};
     if (stat(filename, &st) == -1) {
         fprintf(stderr, "failed to get file size\n");
         return 0;
     }
+
     return (size_t)st.st_size;
 }
+
+static int init_shared_memory(key_t shm_key, size_t file_size, int fd_in,
+                       int *shmid, char **shm_ptr);
 
 int main() {
     int fd_in = open("input.txt", O_RDONLY);
@@ -39,40 +42,23 @@ int main() {
         shmctl(old_shmid, IPC_RMID, NULL);
     }
 
-    size_t shm_total_size = sizeof(SharedData) + SHM_SIZE;
+    int shmid      = -1;
+    char *shm_ptr  = NULL;
 
-    int shmid = shmget(shm_key, shm_total_size, IPC_CREAT | 0666);
-    if (shmid == -1) {
-        fprintf(stderr, "failed to get shm\n");
+    if (init_shared_memory(shm_key, file_size, fd_in, &shmid, &shm_ptr) != 0) {
+        fprintf(stderr, "failed to init shared memory\n");
+
+        shmdt(shm_ptr);
+        shmctl(shmid, IPC_RMID, NULL);
         close(fd_in);
+
         return 1;
     }
 
-    char *shm_ptr = (char *)shmat(shmid, NULL, 0);
-    if (shm_ptr == (void *)-1) {
-        fprintf(stderr, "failed to get shd ptr\n");
-        close(fd_in);
-        return 1;
-    }
-
-    sh_data = (SharedData *)shm_ptr;
-    sh_data->buffer = shm_ptr + sizeof(SharedData);
-    sh_data->buf_size = SHM_SIZE;
-    sh_data->ppid = getpid();
-    sh_data->producer_ended = NOT_ENDED;
-    sh_data->consumer_ended = NOT_ENDED;
-    sh_data->file_size = file_size;
-    sh_data->bytes_read = 0;
-    sh_data->attempts = 0;
-    sh_data->fd_in = fd_in;
-
-    for (int i = 0; i < CHUNKS; i++) {
-        sh_data->producer_chunks[i] = sh_data->buffer + i * CHUNK_SIZE;
-        sh_data->consumer_chunks[i].chunk = sh_data->buffer + i * CHUNK_SIZE;
-        sh_data->consumer_chunks[i].chunk_size = 0;
-    }
+    //=================================================================================
 
     struct sigaction sa = {};
+
     sa.sa_sigaction = producer_handler;
     sigemptyset(&sa.sa_mask);
     sa.sa_flags = SA_SIGINFO;
@@ -85,6 +71,8 @@ int main() {
         return 1;
     }
 
+    // ===============================================================================
+
     sa.sa_sigaction = consumer_handler;
 
     if (sigaction(SIG_CONSUMER, &sa, NULL) == -1) {
@@ -94,6 +82,8 @@ int main() {
         close(fd_in);
         return 1;
     }
+
+    // ===============================================================================
 
     sa.sa_flags = 0;
     sa.sa_handler = sig_exit_handler;
@@ -105,6 +95,8 @@ int main() {
         close(fd_in);
         return 1;
     }
+
+    // ===============================================================================
 
     struct timespec start = {}, end = {};
 
@@ -157,7 +149,7 @@ int main() {
             pause();
         }
 
-        int status;
+        int status = 0;
         waitpid(pid, &status, 0);
 
         clock_gettime(CLOCK_MONOTONIC, &end);
@@ -174,4 +166,42 @@ int main() {
 
         return 0;
     }
+}
+
+int init_shared_memory(key_t shm_key, size_t file_size, int fd_in,
+                       int *shmid, char **shm_ptr) {
+    size_t shm_total_size = sizeof(SharedData) + SHM_SIZE;
+
+    *shmid = shmget(shm_key, shm_total_size, IPC_CREAT | 0666);
+    if (*shmid == -1) {
+        fprintf(stderr, "failed to get shm\n");
+        close(fd_in);
+        return 1;
+    }
+
+    *shm_ptr = (char *)shmat(*shmid, NULL, 0);
+    if (*shm_ptr == (void *)-1) {
+        fprintf(stderr, "failed to get shd ptr\n");
+        close(fd_in);
+        return 1;
+    }
+
+    sh_data                 = (SharedData*)(*shm_ptr);
+    sh_data->buffer         = *shm_ptr + sizeof(SharedData);
+    sh_data->buf_size       = SHM_SIZE;
+    sh_data->ppid           = getpid();
+    sh_data->producer_ended = NOT_ENDED;
+    sh_data->consumer_ended = NOT_ENDED;
+    sh_data->file_size      = file_size;
+    sh_data->bytes_read     = 0;
+    sh_data->attempts       = 0;
+    sh_data->fd_in          = fd_in;
+
+    for (int i = 0; i < CHUNKS; i++) {
+        sh_data->producer_chunks[i] = sh_data->buffer + i * CHUNK_SIZE;
+        sh_data->consumer_chunks[i].chunk = sh_data->buffer + i * CHUNK_SIZE;
+        sh_data->consumer_chunks[i].chunk_size = 0;
+    }
+
+    return 0;
 }
