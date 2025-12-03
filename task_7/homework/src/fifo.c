@@ -8,42 +8,34 @@
 #include <dirent.h>
 #include "log.h"
 
-// Функция для создания FIFO с предварительным созданием директорий
 int create_fifo_with_path(const char *fifo_path) {
-    // Сначала создаем директории, если их нет
-    char path_copy[256];
+    char path_copy[256] = "";
     strncpy(path_copy, fifo_path, sizeof(path_copy));
 
-    // Находим последний слэш, чтобы отделить имя файла от пути
     char *last_slash = strrchr(path_copy, '/');
     if (last_slash != NULL) {
-        *last_slash = '\0';  // Обрезаем после последнего слэша
+        *last_slash = '\0';
 
-        // Рекурсивно создаем директории
         char *current = path_copy;
-        while (*current == '/') current++;  // Пропускаем начальные слэши
+        while (*current == '/') current++;
 
         while (1) {
-            // Ищем следующий слэш
             char *next_slash = strchr(current, '/');
             if (next_slash != NULL) {
-                *next_slash = '\0';  // Временно обрезаем строку
+                *next_slash = '\0';
             }
 
-            // Пытаемся создать директорию
             mkdir(path_copy, 0755);
 
-            if (next_slash == NULL) break;  // Больше нет слэшей
+            if (next_slash == NULL) break;
 
-            *next_slash = '/';  // Восстанавливаем слэш
-            current = next_slash + 1;  // Переходим к следующей части пути
+            *next_slash = '/';
+            current = next_slash + 1;
         }
     }
 
-    // Теперь создаем сам FIFO (именованный канал)
-    // mkfifo создает специальный файл типа FIFO (именованный канал)
     if (mkfifo(fifo_path, 0666) == -1) {
-        if (errno != EEXIST) {  // EEXIST значит FIFO уже существует - это нормально
+        if (errno != EEXIST) {
             ELOG("mkfifo failed for %s: %s", fifo_path, strerror(errno));
             return -1;
         }
@@ -55,30 +47,26 @@ int create_fifo_with_path(const char *fifo_path) {
     return 0;
 }
 
-// Проверка существования файла
 int file_exists(const char *path) {
     if (!path) {
         ELOG("file_exists: null path");
         return 0;
     }
 
-    // access() проверяет доступ к файлу по указанному пути
-    // F_OK проверяет существование файла
     int result = access(path, F_OK);
     if (result == -1 && errno != ENOENT) {
         ELOG("access() failed for %s: %s", path, strerror(errno));
     }
+
     return result != -1;
 }
 
-// Удаление FIFO и пустых директорий
 void cleanup_fifo(const char *fifo_path) {
     if (!fifo_path) {
         ELOG("cleanup_fifo: null path");
         return;
     }
 
-    // Удаляем сам FIFO файл
     if (unlink(fifo_path) == -1) {
         if (errno != ENOENT) {
             ELOG("Failed to unlink FIFO %s: %s", fifo_path, strerror(errno));
@@ -87,40 +75,33 @@ void cleanup_fifo(const char *fifo_path) {
         ILOG("Removed FIFO: %s", fifo_path);
     }
 
-    // Теперь удаляем пустые директории выше по пути
-    char path_copy[256];
+    char path_copy[256] = "";
     strncpy(path_copy, fifo_path, sizeof(path_copy) - 1);
     path_copy[sizeof(path_copy) - 1] = '\0';
 
     while (1) {
-        // Находим последний слэш
         char *last_slash = strrchr(path_copy, '/');
         if (last_slash == NULL) break;
 
-        *last_slash = '\0';  // Обрезаем после слэша
+        *last_slash = '\0';
 
-        // Проверяем, пустая ли директория
         DIR *dir = opendir(path_copy);
         if (dir == NULL) break;
 
         int is_empty = 1;
         struct dirent *entry;
 
-        // Читаем содержимое директории
         while ((entry = readdir(dir)) != NULL) {
-            // Пропускаем текущую и родительскую директории
             if (strcmp(entry->d_name, ".") != 0 && strcmp(entry->d_name, "..") != 0) {
-                is_empty = 0;  // Нашли файл - директория не пустая
+                is_empty = 0;
                 break;
             }
         }
 
         closedir(dir);
 
-        // Если директория не пустая, прекращаем удаление
         if (!is_empty) break;
 
-        // Удаляем пустую директорию
         if (rmdir(path_copy) == -1) {
             if (errno != ENOENT && errno != ENOTEMPTY) {
                 ELOG("Failed to rmdir %s: %s", path_copy, strerror(errno));

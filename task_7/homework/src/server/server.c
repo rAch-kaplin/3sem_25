@@ -17,8 +17,10 @@
 #include "fifo.h"
 
 
-client_info_t clients[MAX_CLIENTS];
+ClientInfo clients[MAX_CLIENTS] = {0};
+
 volatile sig_atomic_t server_running = 1;
+
 int epoll_fd = -1;
 
 void server_signal_handler(int sig) {
@@ -67,14 +69,15 @@ void close_client_connection(int client_id) {
         }
     }
 
-    memset(&clients[client_id], 0, sizeof(client_info_t));
-    clients[client_id].client_id = -1;
-    clients[client_id].tx_fd = -1;
-    clients[client_id].rx_fd = -1;
+    memset(&clients[client_id], 0, sizeof(ClientInfo));
+
+    clients[client_id].client_id    = -1;
+    clients[client_id].tx_fd        = -1;
+    clients[client_id].rx_fd        = -1;
 }
 
 void* send_file_to_client(void *arg) {
-    file_task_t *task = (file_task_t*)arg;
+    FileTask *task = (FileTask*)arg;
 
     if (!task) {
         ELOG("send_file_to_client: invalid task argument");
@@ -87,6 +90,7 @@ void* send_file_to_client(void *arg) {
     if (!file) {
         ELOG("[Thread] Failed to open file %s: %s", task->filename, strerror(errno));
         free(task);
+
         return NULL;
     }
 
@@ -94,10 +98,11 @@ void* send_file_to_client(void *arg) {
         ELOG("[Thread] Failed to seek to end of file: %s", strerror(errno));
         fclose(file);
         free(task);
+
         return NULL;
     }
 
-    long file_size = ftell(file);
+    ssize_t file_size = ftell(file);
     if (file_size < 0) {
         ELOG("[Thread] Failed to get file size: %s", strerror(errno));
         fclose(file);
@@ -112,7 +117,7 @@ void* send_file_to_client(void *arg) {
         return NULL;
     }
 
-    char size_header[64];
+    char size_header[64] = "";
     int ret = snprintf(size_header, sizeof(size_header), "SIZE:%ld\n", file_size);
     if (ret < 0 || ret >= (int)sizeof(size_header)) {
         ELOG("[Thread] Failed to format size header");
@@ -130,16 +135,16 @@ void* send_file_to_client(void *arg) {
         return NULL;
     }
 
-    char buffer[BUFFER_SIZE];
+    char buffer[BUFFER_SIZE] = "";
     size_t total_sent = 0;
 
     while (total_sent < (size_t)file_size && server_running) {
-
         size_t bytes_read = fread(buffer, 1, sizeof(buffer), file);
         if (bytes_read == 0) {
             if (ferror(file)) {
                 ELOG("[Thread] Error reading file: %s", strerror(errno));
             }
+
             break;
         }
 
@@ -180,7 +185,7 @@ void process_client_command(int client_id, const char *command) {
 
     printf("Client %d: %s\n", client_id, command);
 
-    char cmd_copy[512];
+    char cmd_copy[512]= "";
     strncpy(cmd_copy, command, sizeof(cmd_copy) - 1);
     cmd_copy[sizeof(cmd_copy) - 1] = '\0';
 
@@ -190,6 +195,7 @@ void process_client_command(int client_id, const char *command) {
     if (strncmp(cmd_copy, CMD_DISCONNECT, strlen(CMD_DISCONNECT)) == 0) {
         ILOG("Client %d disconnecting", client_id);
         close_client_connection(client_id);
+
         return;
     }
 
@@ -197,27 +203,32 @@ void process_client_command(int client_id, const char *command) {
         char filename[256];
         if (sscanf(cmd_copy + strlen(CMD_GET) + 1, "%255s", filename) != 1) {
             ELOG("Invalid GET command format: %s", cmd_copy);
+
             return;
         }
 
         if (!file_exists(filename)) {
             ELOG("File does not exist: %s (requested by client %d)", filename, client_id);
+
             return;
         }
 
         ILOG("Client %d requested file: %s", client_id, filename);
 
-        file_task_t *task = malloc(sizeof(file_task_t));
+        FileTask *task = malloc(sizeof(FileTask));
         if (!task) {
             ELOG("Failed to allocate memory for file task: %s", strerror(errno));
+
             return;
         }
 
         task->client_fd = clients[client_id].tx_fd;
+
         strncpy(task->filename, filename, sizeof(task->filename) - 1);
+
         task->filename[sizeof(task->filename) - 1] = '\0';
 
-        pthread_t thread;
+        pthread_t thread = {0};
         if (pthread_create(&thread, NULL, send_file_to_client, task) != 0) {
             ELOG("Failed to create thread for file transfer: %s", strerror(errno));
             free(task);
@@ -250,7 +261,6 @@ int register_new_client(const char *tx_path, const char *rx_path) {
         return -1;
     }
 
-    // Открываем RX FIFO только для чтения (клиент пишет, сервер читает)
     int rx_fd = open(rx_path, O_RDONLY | O_NONBLOCK);
     if (rx_fd == -1) {
         ELOG("Failed to open client RX FIFO %s: %s", rx_path, strerror(errno));
@@ -258,18 +268,20 @@ int register_new_client(const char *tx_path, const char *rx_path) {
         return -1;
     }
 
-    clients[client_id].client_id = client_id;
-    clients[client_id].tx_fd = tx_fd;
-    clients[client_id].rx_fd = rx_fd;
+    clients[client_id].client_id    = client_id;
+    clients[client_id].tx_fd        = tx_fd;
+    clients[client_id].rx_fd        = rx_fd;
+
     strncpy(clients[client_id].tx_path, tx_path, sizeof(clients[client_id].tx_path) - 1);
     clients[client_id].tx_path[sizeof(clients[client_id].tx_path) - 1] = '\0';
+
     strncpy(clients[client_id].rx_path, rx_path, sizeof(clients[client_id].rx_path) - 1);
     clients[client_id].rx_path[sizeof(clients[client_id].rx_path) - 1] = '\0';
+
     clients[client_id].is_active = 1;
 
-    struct epoll_event ev;
+    struct epoll_event ev = {};
     ev.events = EPOLLIN;
-    ev.data.fd = rx_fd;
     ev.data.u32 = (uint32_t)client_id;
 
     if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, rx_fd, &ev) == -1) {
@@ -278,7 +290,6 @@ int register_new_client(const char *tx_path, const char *rx_path) {
         return -1;
     }
 
-    // Sending ACK
     ssize_t written = write(tx_fd, RESP_ACK, strlen(RESP_ACK));
     if (written <= 0) {
         ELOG("Failed to send ACK to client %d: %s", client_id, strerror(errno));
@@ -286,22 +297,21 @@ int register_new_client(const char *tx_path, const char *rx_path) {
         return -1;
     }
 
-    // Проверяем, есть ли уже команды от клиента (важно для FIFO)
-    // Это нужно, потому что клиент может отправить команду до того, как epoll получит событие
-    char check_buffer[1024];
+    char check_buffer[1024] = "";
     ssize_t check_read = read(rx_fd, check_buffer, sizeof(check_buffer) - 1);
     if (check_read > 0) {
         check_buffer[check_read] = '\0';
         ILOG("Found pending command from client %d: %s", client_id, check_buffer);
 
-        // Обрабатываем команду построчно
         char *line = check_buffer;
-        char *next_line;
+        char *next_line = NULL;
+
         while ((next_line = strchr(line, '\n')) != NULL) {
             *next_line = '\0';
             if (strlen(line) > 0) {
                 process_client_command(client_id, line);
             }
+
             line = next_line + 1;
         }
         if (line < check_buffer + check_read && strlen(line) > 0) {
@@ -311,7 +321,6 @@ int register_new_client(const char *tx_path, const char *rx_path) {
         WLOG("Error checking for pending commands from client %d: %s", client_id, strerror(errno));
     }
 
-    // Client registered
     return 0;
 }
 
@@ -321,18 +330,19 @@ void process_registration_commands(int server_fifo_fd) {
         return;
     }
 
-    char buffer[1024];
+    char buffer[1024] = "";
 
     while (1) {
         ssize_t n = read(server_fifo_fd, buffer, sizeof(buffer) - 1);
-
         if (n <= 0) {
             if (n == -1 && errno == EAGAIN) {
                 break;
             }
+
             if (n == -1) {
                 ELOG("Error reading from server FIFO: %s", strerror(errno));
             }
+
             break;
         }
 
@@ -340,12 +350,13 @@ void process_registration_commands(int server_fifo_fd) {
         ILOG("Received registration data: %s", buffer);
 
         char *line = buffer;
-        char *next_line;
+        char *next_line = NULL;
 
         while ((next_line = strchr(line, '\n')) != NULL) {
             *next_line = '\0';
 
-            char tx_path[256], rx_path[256];
+            char tx_path[256] = "", rx_path[256] = "";
+
             if (sscanf(line, "%*s %255s %255s", tx_path, rx_path) == 2) {
                 if (register_new_client(tx_path, rx_path) != 0) {
                     ELOG("Failed to register client: %s %s", tx_path, rx_path);

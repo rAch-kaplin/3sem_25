@@ -30,17 +30,17 @@ int main(int argc, char **argv) {
     Client client = {0};
     client.pid = getpid();
 
-    int ret1 = snprintf(client.tx_fifo, sizeof(client.tx_fifo),
+    int n = snprintf(client.tx_fifo, sizeof(client.tx_fifo),
                         "%s%d/tx", CLIENT_PREFIX, client.pid);
-    if (ret1 < 0 || ret1 >= (int)sizeof(client.tx_fifo)) {
+    if (n < 0 || n >= (int)sizeof(client.tx_fifo)) {
         ELOG("Failed to format TX FIFO path");
         LoggerDeinit();
         return 1;
     }
 
-    int ret2 = snprintf(client.rx_fifo, sizeof(client.rx_fifo),
+    n = snprintf(client.rx_fifo, sizeof(client.rx_fifo),
                         "%s%d/rx", CLIENT_PREFIX, client.pid);
-    if (ret2 < 0 || ret2 >= (int)sizeof(client.rx_fifo)) {
+    if (n < 0 || n >= (int)sizeof(client.rx_fifo)) {
         ELOG("Failed to format RX FIFO path");
         LoggerDeinit();
         return 1;

@@ -145,7 +145,6 @@ int receive_file(Client *client) {
     }
 
     char buffer[BUFFER_SIZE] = "";
-
     char size_header[64] = "";
     size_t cur_pos = 0;
 
@@ -162,7 +161,8 @@ int receive_file(Client *client) {
             } else {
                 ELOG("Failed to read size header: %s", strerror(errno));
             }
-            if (n <= 0 && errno != EINTR) {
+
+            if (n == 0 || (n < 0 && errno != EINTR)) {
                 return -1;
             }
         }
@@ -208,7 +208,8 @@ int receive_file(Client *client) {
             } else {
                 ELOG("Failed to read from server: %s", strerror(errno));
             }
-            if (n <= 0 && errno != EINTR) {
+
+            if (n == 0 || (n < 0 && errno != EINTR)) {
                 return -1;
             }
         }
@@ -223,7 +224,7 @@ int receive_file(Client *client) {
         }
 
         fflush(stdout);
-            }
+    }
 
     return 0;
 }

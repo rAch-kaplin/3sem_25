@@ -10,14 +10,14 @@ typedef struct {
     char    tx_path[256];
     char    rx_path[256];
     int     is_active;
-} client_info_t;
+} ClientInfo;
 
 typedef struct {
     int     client_fd;
     char    filename[256];
-} file_task_t;
+} FileTask;
 
-extern client_info_t clients[];
+extern ClientInfo clients[];
 extern volatile sig_atomic_t server_running;
 extern int epoll_fd;
 

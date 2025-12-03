@@ -12,16 +12,11 @@
 #include <errno.h>
 #include <sys/epoll.h>
 
-int main(void) {
+int main() {
     if (LoggerInit(LOGL_INFO, "server.log", DEFAULT_MODE) != 0) {
         fprintf(stderr, "Failed to initialize logger\n");
         return 1;
     }
-
-    printf("=== FIFO Server Started ===\n");
-    printf("Max clients: %d\n", MAX_CLIENTS);
-    printf("Server FIFO: %s\n", SERVER_FIFO_PATH);
-    printf("Press Ctrl+C to stop\n\n");
 
     setup_server_signals();
 
@@ -56,9 +51,8 @@ int main(void) {
         return 1;
     }
 
-    struct epoll_event ev;
+    struct epoll_event ev = {};
     ev.events = EPOLLIN;
-    ev.data.fd = server_fifo_fd;
     ev.data.u32 = 0;
 
     if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, server_fifo_fd, &ev) == -1) {
@@ -72,7 +66,7 @@ int main(void) {
 
     printf("Server ready. Waiting for clients...\n\n");
 
-    struct epoll_event events[MAX_CLIENTS + 1];
+    struct epoll_event events[MAX_CLIENTS + 1] = {};
 
     while (server_running) {
         int nfds = epoll_wait(epoll_fd, events, MAX_CLIENTS + 1, 1000);
@@ -101,33 +95,28 @@ int main(void) {
 
                 ILOG("Epoll event for client %d", client_id);
 
-                // Читаем все доступные команды от клиента
-                char buffer[1024];
+                char buffer[1024] = "";
                 ssize_t total_read = 0;
 
-                // Читаем все доступные данные (важно для FIFO)
                 while (total_read < (ssize_t)(sizeof(buffer) - 1)) {
-                    ssize_t n = read(clients[client_id].rx_fd,
-                                     buffer + total_read,
-                                     sizeof(buffer) - 1 - total_read);
+                    ssize_t n = read(clients[client_id].rx_fd, buffer + total_read,
+                                     sizeof(buffer) - 1 - (size_t)total_read);
 
                     if (n > 0) {
                         total_read += n;
-                        // Продолжаем читать, пока есть данные
+
                         continue;
                     } else if (n == 0) {
-                        // EOF - клиент закрыл соединение
                         ILOG("Client %d disconnected (EOF)", client_id);
                         close_client_connection(client_id);
                         break;
                     } else {
-                        // Ошибка чтения
-                        if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                            // Нет больше данных
+                        if (errno == EAGAIN) {
                             break;
                         } else if (errno == ECONNRESET || errno == EPIPE) {
                             ILOG("Client %d disconnected", client_id);
                             close_client_connection(client_id);
+
                             break;
                         } else {
                             ELOG("Read error from client %d: %s", client_id, strerror(errno));
@@ -136,23 +125,22 @@ int main(void) {
                     }
                 }
 
-                // Обрабатываем все прочитанные команды построчно
                 if (total_read > 0) {
                     buffer[total_read] = '\0';
 
-                    // Разбиваем на строки и обрабатываем каждую команду
                     char *line = buffer;
-                    char *next_line;
+                    char *next_line = NULL;
 
                     while ((next_line = strchr(line, '\n')) != NULL) {
                         *next_line = '\0';
+
                         if (strlen(line) > 0) {
                             process_client_command(client_id, line);
                         }
+
                         line = next_line + 1;
                     }
 
-                    // Обрабатываем последнюю строку, если нет завершающего \n
                     if (line < buffer + total_read && strlen(line) > 0) {
                         process_client_command(client_id, line);
                     }
@@ -160,34 +148,36 @@ int main(void) {
             }
         }
 
-        // Периодически проверяем наличие данных от клиентов (на случай, если epoll пропустил событие)
         static int counter = 0;
         if (++counter % 5 == 0) {
             int active_clients = 0;
+
             for (int i = 0; i < MAX_CLIENTS; i++) {
                 if (clients[i].is_active) {
                     active_clients++;
-                    // Проверяем, есть ли данные для чтения (неблокирующий режим)
-                    char check_buffer[1024];
+                    char check_buffer[1024] = "";
+
                     ssize_t check_read = read(clients[i].rx_fd, check_buffer, sizeof(check_buffer) - 1);
                     if (check_read > 0) {
                         check_buffer[check_read] = '\0';
                         ILOG("Found data from client %d in periodic check: %s", i, check_buffer);
-                        // Обрабатываем команды построчно
+
                         char *line = check_buffer;
-                        char *next_line;
+                        char *next_line = NULL;
+
                         while ((next_line = strchr(line, '\n')) != NULL) {
                             *next_line = '\0';
+
                             if (strlen(line) > 0) {
                                 process_client_command(i, line);
                             }
+
                             line = next_line + 1;
                         }
                         if (line < check_buffer + check_read && strlen(line) > 0) {
                             process_client_command(i, line);
                         }
                     } else if (check_read == 0) {
-                        // EOF - клиент отключился
                         ILOG("Client %d disconnected (EOF in periodic check)", i);
                         close_client_connection(i);
                     }
@@ -199,6 +189,7 @@ int main(void) {
 
     printf("\n=== Shutting down server ===\n");
     printf("Closing client connections...\n");
+
     for (int i = 0; i < MAX_CLIENTS; i++) {
         if (clients[i].is_active) {
             close_client_connection(i);
