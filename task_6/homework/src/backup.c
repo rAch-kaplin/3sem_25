@@ -18,6 +18,45 @@ int ensure_backup_dir() {
     return 0;
 }
 
+// Helper function to create relative path for backup filename
+static void make_backup_relative_path(const char *file_path, const char *monitored_dir, char *relative_path, size_t rel_path_size) {
+    const char *file_basename = strrchr(file_path, '/');
+    if (file_basename != NULL) {
+        file_basename++; // Skip the '/'
+    } else {
+        file_basename = file_path;
+    }
+
+    relative_path[0] = '\0';
+    if (strncmp(file_path, monitored_dir, strlen(monitored_dir)) == 0) {
+        size_t dir_len = strlen(monitored_dir);
+        size_t file_len = strlen(file_path);
+        if (file_len > dir_len) {
+            strncpy(relative_path, file_path + dir_len, rel_path_size - 1);
+            relative_path[rel_path_size - 1] = '\0';
+            // Remove leading slash if present
+            if (relative_path[0] == '/') {
+                memmove(relative_path, relative_path + 1, strlen(relative_path));
+            }
+        } else {
+            // Fallback: use filename only
+            strncpy(relative_path, file_basename, rel_path_size - 1);
+            relative_path[rel_path_size - 1] = '\0';
+        }
+    } else {
+        // File is not under monitored_dir, use full path (shouldn't happen normally)
+        strncpy(relative_path, file_path, rel_path_size - 1);
+        relative_path[rel_path_size - 1] = '\0';
+    }
+
+    // Replace / with _ for filename
+    for (size_t j = 0; j < strlen(relative_path); j++) {
+        if (relative_path[j] == '/') {
+            relative_path[j] = '_';
+        }
+    }
+}
+
 int save_diff(const char *old_file, const char *new_file,
     const char *diff_path, time_t timestamp, int sample_num) {
 
@@ -97,34 +136,7 @@ int create_full_backup(MonitorState *state) {
         }
 
         // Create relative path for backup
-        relative_path[0] = '\0';
-        if (strncmp(files[i], state->monitored_dir, strlen(state->monitored_dir)) == 0) {
-            size_t dir_len = strlen(state->monitored_dir);
-            size_t file_len = strlen(files[i]);
-            if (file_len > dir_len) {
-                strncpy(relative_path, files[i] + dir_len, sizeof(relative_path) - 1);
-                relative_path[sizeof(relative_path) - 1] = '\0';
-                // Remove leading slash if present
-                if (relative_path[0] == '/') {
-                    memmove(relative_path, relative_path + 1, strlen(relative_path));
-                }
-            } else {
-                // Fallback: use filename only
-                strncpy(relative_path, file_basename, sizeof(relative_path) - 1);
-                relative_path[sizeof(relative_path) - 1] = '\0';
-            }
-        } else {
-            // File is not under monitored_dir, use full path (shouldn't happen normally)
-            strncpy(relative_path, files[i], sizeof(relative_path) - 1);
-            relative_path[sizeof(relative_path) - 1] = '\0';
-        }
-
-        // Replace / with _ for filename
-        for (size_t j = 0; j < strlen(relative_path); j++) {
-            if (relative_path[j] == '/') {
-                relative_path[j] = '_';
-            }
-        }
+        make_backup_relative_path(files[i], state->monitored_dir, relative_path, sizeof(relative_path));
 
 
         int wn = snprintf(backup_path, sizeof(backup_path), "%s/full_%s", BACKUP_DIR, relative_path);
@@ -304,7 +316,7 @@ int create_incremental_backup(MonitorState *state) {
     }
 
     if (changed_count == 0) {
-        DLOG("No changes detected in sample %d\n", state->current_sample);
+        // DLOG("No changes detected in sample %d\n", state->current_sample);
         if (changed_files) {
             for (size_t i = 0; i < changed_count; i++) {
                 free(changed_files[i]);
@@ -333,34 +345,7 @@ int create_incremental_backup(MonitorState *state) {
         }
 
         // Create relative path
-        relative_path[0] = '\0';
-        if (strncmp(changed_files[i], state->monitored_dir, strlen(state->monitored_dir)) == 0) {
-            size_t dir_len = strlen(state->monitored_dir);
-            size_t file_len = strlen(changed_files[i]);
-            if (file_len > dir_len) {
-                strncpy(relative_path, changed_files[i] + dir_len, sizeof(relative_path) - 1);
-                relative_path[sizeof(relative_path) - 1] = '\0';
-                // Remove leading slash if present
-                if (relative_path[0] == '/') {
-                    memmove(relative_path, relative_path + 1, strlen(relative_path));
-                }
-            } else {
-                // Fallback: use filename only
-                strncpy(relative_path, file_basename, sizeof(relative_path) - 1);
-                relative_path[sizeof(relative_path) - 1] = '\0';
-            }
-        } else {
-            // File is not under monitored_dir, use full path (shouldn't happen normally)
-            strncpy(relative_path, changed_files[i], sizeof(relative_path) - 1);
-            relative_path[sizeof(relative_path) - 1] = '\0';
-        }
-
-        // Replace / with _ for filename
-        for (size_t j = 0; j < strlen(relative_path); j++) {
-            if (relative_path[j] == '/') {
-                relative_path[j] = '_';
-            }
-        }
+        make_backup_relative_path(changed_files[i], state->monitored_dir, relative_path, sizeof(relative_path));
 
         // Find old backup file
         int wn = snprintf(old_backup_path, sizeof(old_backup_path), "%s/full_%s", BACKUP_DIR, relative_path);
@@ -395,27 +380,12 @@ int create_incremental_backup(MonitorState *state) {
         }
 
         DLOG("Creating diff: %s -> %s (sample %d)\n", changed_files[i], diff_path, state->current_sample);
+        // Создаем diff от базового бэкапа (начальная версия) к текущей версии
         save_diff(old_backup_path, changed_files[i], diff_path, now, state->current_sample);
-
-        // Update old backup to new version
-        FILE *src = fopen(changed_files[i], "r");
-        if (src != NULL) {
-            FILE *dst = fopen(old_backup_path, "w");
-            if (dst != NULL) {
-                char buffer[4096];
-                size_t n;
-                while ((n = fread(buffer, 1, sizeof(buffer), src)) > 0) {
-                    fwrite(buffer, 1, n, dst);
-                }
-                fclose(dst);
-            }
-            fclose(src);
-        }
 
         DLOG("Created diff for file: %s\n", changed_files[i]);
     }
 
-    // Free changed files array
     for (size_t i = 0; i < changed_count; i++) {
         free(changed_files[i]);
     }
@@ -423,7 +393,7 @@ int create_incremental_backup(MonitorState *state) {
 
     ILOG("Incremental backup completed: %zu files changed in sample %d\n", changed_count, state->current_sample);
 
-    return 0;
+    return (int)changed_count;
 }
 
 int get_diff_content(const char *diff_path, char **content, size_t *len) {
@@ -455,4 +425,158 @@ int get_diff_content(const char *diff_path, char **content, size_t *len) {
     return 0;
 }
 
+int restore_file_to_sample(MonitorState *state, const char *filename, int target_sample) {
+    if (filename == NULL || strlen(filename) == 0) {
+        ELOG("Invalid filename for restore\n");
+        return -1;
+    }
 
+    if (target_sample < 1 || target_sample > state->current_sample) {
+        ELOG("Invalid sample number: %d (current: %d)\n", target_sample, state->current_sample);
+        return -1;
+    }
+
+    char file_path[MAX_PATH_LEN] = "";
+    char relative_path[MAX_PATH_LEN] = "";
+
+    snprintf(file_path, sizeof(file_path), "%s/%s",
+             state->monitored_dir, filename);
+
+    make_backup_relative_path(file_path, state->monitored_dir, relative_path, sizeof(relative_path));
+
+    char base_backup_path[MAX_PATH_LEN] = "";
+    snprintf(base_backup_path, sizeof(base_backup_path), "%s/full_%s", BACKUP_DIR, relative_path);
+
+    struct stat st;
+    if (stat(base_backup_path, &st) != 0) {
+        ELOG("Base backup not found: %s\n", base_backup_path);
+        return -1;
+    }
+
+    char temp_file[MAX_PATH_LEN] = "";
+    snprintf(temp_file, sizeof(temp_file), "%s/temp_restore_%s_%d",
+             BACKUP_DIR, relative_path, getpid());
+
+    FILE *src = fopen(base_backup_path, "r");
+    if (src == NULL) {
+        ELOG("Failed to open base backup: %s\n", base_backup_path);
+        return -1;
+    }
+
+    FILE *dst = fopen(temp_file, "w");
+    if (dst == NULL) {
+        ELOG("Failed to create temp file: %s\n", temp_file);
+        fclose(src);
+        return -1;
+    }
+
+    char buffer[4096];
+    size_t n;
+    while ((n = fread(buffer, 1, sizeof(buffer), src)) > 0) {
+        fwrite(buffer, 1, n, dst);
+    }
+    fclose(src);
+    fclose(dst);
+
+    char diff_path[MAX_PATH_LEN] = "";
+    snprintf(diff_path, sizeof(diff_path), "%s/diff_%s_sample_%d",
+             BACKUP_DIR, relative_path, target_sample);
+
+    if (stat(diff_path, &st) == 0) {
+        FILE *diff_fp = fopen(diff_path, "r");
+        if (diff_fp != NULL) {
+            char clean_diff_path[MAX_PATH_LEN] = "";
+            snprintf(clean_diff_path, sizeof(clean_diff_path), "%s/temp_clean_diff_%s_%d_%d",
+                     BACKUP_DIR, relative_path, target_sample, getpid());
+
+            FILE *clean_diff_fp = fopen(clean_diff_path, "w");
+            if (clean_diff_fp != NULL) {
+                char line[4096];
+                bool past_metadata = false;
+                while (fgets(line, sizeof(line), diff_fp) != NULL) {
+                    if (line[0] == '#') {
+                        continue;
+                    }
+                    if (strncmp(line, "---\n", 4) == 0) {
+                        past_metadata = true;
+                        continue;
+                    }
+                    if (past_metadata || line[0] != '#') {
+                        fputs(line, clean_diff_fp);
+                    }
+                }
+                fclose(clean_diff_fp);
+            }
+            fclose(diff_fp);
+
+            char patch_cmd[2048];
+            snprintf(patch_cmd, sizeof(patch_cmd),
+                    "patch -u \"%s\" < \"%s\" 2>/dev/null",
+                    temp_file, clean_diff_path);
+
+            int patch_result = system(patch_cmd);
+            if (patch_result != 0) {
+                DLOG("Patch failed for sample %d (exit code: %d)\n", target_sample, patch_result);
+                unlink(clean_diff_path);
+                unlink(temp_file);
+                return -1;
+            }
+
+            unlink(clean_diff_path);
+        } else {
+            ELOG("Failed to open diff file: %s\n", diff_path);
+            unlink(temp_file);
+            return -1;
+        }
+    } else {
+        DLOG("No diff file for sample %d, using base backup as-is\n", target_sample);
+    }
+
+    const char *file_basename = strrchr(filename, '/');
+    if (file_basename != NULL) {
+        file_basename++; // Skip the '/'
+    } else {
+        file_basename = filename;
+    }
+
+    char restored_filename[MAX_PATH_LEN] = "";
+    const char *dot = strrchr(file_basename, '.');
+    if (dot != NULL) {
+        size_t name_len = dot - file_basename;
+        snprintf(restored_filename, sizeof(restored_filename), "%.*s_restored_%d%s",
+                 (int)name_len, file_basename, target_sample, dot);
+    } else {
+        snprintf(restored_filename, sizeof(restored_filename), "%s_restored_%d",
+                 file_basename, target_sample);
+    }
+
+    char restored_file_path[MAX_PATH_LEN] = "";
+    snprintf(restored_file_path, sizeof(restored_file_path), "%s/%s",
+             state->monitored_dir, restored_filename);
+
+    src = fopen(temp_file, "r");
+    if (src == NULL) {
+        ELOG("Failed to open restored temp file\n");
+        unlink(temp_file);
+        return -1;
+    }
+
+    dst = fopen(restored_file_path, "w");
+    if (dst == NULL) {
+        ELOG("Failed to open restored file for writing: %s\n", restored_file_path);
+        fclose(src);
+        unlink(temp_file);
+        return -1;
+    }
+
+    while ((n = fread(buffer, 1, sizeof(buffer), src)) > 0) {
+        fwrite(buffer, 1, n, dst);
+    }
+    fclose(src);
+    fclose(dst);
+
+    unlink(temp_file);
+
+    ILOG("File %s restored to sample %d as %s\n", filename, target_sample, restored_filename);
+    return 0;
+}

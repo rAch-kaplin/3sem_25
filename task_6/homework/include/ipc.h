@@ -9,17 +9,19 @@
 
 typedef enum {
     CMD_SHOW_DIFF   = 0,    /* Show diff for all changed files */
-    CMD_SHOW_K_DIFFS= 1,    /* Show K most recent diffs       */
-    CMD_SET_PID     = 2,    /* Set monitored PID              */
-    CMD_SET_PERIOD  = 3,    /* Set backup/sample period       */
-    CMD_STATUS      = 4,    /* Show daemon status             */
-    CMD_UNKNOWN     = 5     /* Unrecognized or invalid command*/
+    CMD_SHOW_K_DIFFS= 1,    /* Show K most recent diffs        */
+    CMD_SET_PID     = 2,    /* Set monitored PID               */
+    CMD_SET_PERIOD  = 3,    /* Set backup/sample period        */
+    CMD_STATUS      = 4,    /* Show daemon status              */
+    CMD_RESTORE     = 5,    /* show restored file              */
+    CMD_UNKNOWN     = 6     /* Unrecognized or invalid command */
 } CommandType;
 
 
 typedef struct {
     CommandType type;
     int         arg;  // for k diffs, new pid, or period
+    char        filename[MAX_PATH_LEN];
 } Command;
 
 int init_ipc(void);

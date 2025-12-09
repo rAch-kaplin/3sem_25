@@ -14,6 +14,8 @@ int get_diff_content(const char *diff_path, char **content, size_t *len);
 int find_changed_files(MonitorState *state, char ***changed_files, size_t *count);
 int get_changed_files_from_queue(MonitorState *state, char ***changed_files, size_t *count);
 int ensure_backup_dir(void);
+int restore_file_to_sample(MonitorState *state, const char *filename, int target_sample);
+
 
 #endif //BACKUP_H
 

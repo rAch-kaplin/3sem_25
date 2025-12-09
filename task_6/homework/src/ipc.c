@@ -69,6 +69,17 @@ int read_command(Command *cmd) {
     } else if (strncmp(buffer, "status", 6) == 0) {
         cmd->type = CMD_STATUS;
         cmd->arg = 0;
+    } else if (strncmp(buffer, "restore", 7) == 0) {
+        cmd->type = CMD_RESTORE;
+        char filename[MAX_PATH_LEN] = "";
+        int sample = 0;
+        if (sscanf(buffer, "restore %s %d", filename, &sample) == 2) {
+            strncpy(cmd->filename, filename, MAX_PATH_LEN - 1);
+            cmd->filename[MAX_PATH_LEN - 1] = '\0';
+            cmd->arg = sample;
+        } else {
+            cmd->type = CMD_UNKNOWN;
+        }
     } else {
         cmd->type = CMD_UNKNOWN;
     }
@@ -182,6 +193,36 @@ int process_command(Command *cmd, MonitorState *state, char *response, size_t re
                     state->current_sample,
                     state->file_count,
                     state->first_backup_done ? "yes" : "no");
+            break;
+        }
+
+        case CMD_RESTORE: {
+            int result = restore_file_to_sample(state, cmd->filename, cmd->arg);
+            if (result == 0) {
+                const char *file_basename = strrchr(cmd->filename, '/');
+                if (file_basename != NULL) {
+                    file_basename++;
+                } else {
+                    file_basename = cmd->filename;
+                }
+
+                char restored_filename[MAX_PATH_LEN] = "";
+                const char *dot = strrchr(file_basename, '.');
+                if (dot != NULL) {
+                    size_t name_len = dot - file_basename;
+                    snprintf(restored_filename, sizeof(restored_filename), "%.*s_restored_%d%s",
+                             (int)name_len, file_basename, cmd->arg, dot);
+                } else {
+                    snprintf(restored_filename, sizeof(restored_filename), "%s_restored_%d",
+                             file_basename, cmd->arg);
+                }
+
+                snprintf(response, response_len,
+                        "File %s restored to sample %d as %s\n", cmd->filename, cmd->arg, restored_filename);
+            } else {
+                snprintf(response, response_len,
+                        "Failed to restore file %s to sample %d\n", cmd->filename, cmd->arg);
+            }
             break;
         }
 
