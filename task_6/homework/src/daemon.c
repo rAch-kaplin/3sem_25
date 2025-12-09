@@ -318,6 +318,12 @@ int process_inotify_events(MonitorState *state) {
                     continue;
                 }
 
+                // Ignore restored files (files with _restored_N pattern)
+                if (strstr(basename, "_restored_") != NULL) {
+                    i += (size_t)INOTIFY_EVENT_SIZE + (size_t)event->len;
+                    continue;
+                }
+
                 bool should_add     = false;
                 bool is_text        = false;
 
@@ -380,6 +386,7 @@ int process_inotify_events(MonitorState *state) {
 }
 
 int run_daemon(MonitorState *state) {
+    g_state = state;  // Set global state for signal handler
 
     if (init_ipc() != 0) {
         ELOG("Failed to initialize IPC\n");
@@ -417,19 +424,26 @@ int run_daemon(MonitorState *state) {
             send_response(response);
         }
 
-        // Perform sampling if there are changes or periodic timeout
-        state->current_sample++;
-        ILOG("Sample #%d\n", state->current_sample);
+        // Check if there are any changes before creating a sample
+        if (state->changed_files_count > 0 || !state->first_backup_done) {
+            // Create sample only if there are changes or first backup needed
+            state->current_sample++;
+            ILOG("Sample #%d\n", state->current_sample);
 
-        if (create_incremental_backup(state) != 0) {
-            WLOG("Failed to create incremental backup\n");
+            int changed_files = create_incremental_backup(state);
+            if (changed_files > 0) {
+                ILOG("Sample #%d: %d files changed\n", state->current_sample, changed_files);
+            } else if (!state->first_backup_done) {
+                ILOG("Sample #%d: initial full backup completed\n", state->current_sample);
+            }
         }
 
-        // Sleep until next sample
+        // Sleep until next sample period
         nanosleep(&sleep_time, NULL);
     }
 
     cleanup_ipc();
+    g_state = NULL;  // Clear global state
     ILOG("Daemon stopped\n");
     return 0;
 }
@@ -516,6 +530,21 @@ int run_interactive(MonitorState *state) {
                     printf("Taking sample #%d...\n", state->current_sample);
                     if (create_incremental_backup(state) != 0) {
                         printf("Failed to create incremental backup\n");
+                    }
+                    continue;
+                } else if (strncmp(input, "restore", 7) == 0) {
+                    cmd.type = CMD_RESTORE;
+                    char filename[MAX_PATH_LEN];
+                    int sample = 0;
+                    if (sscanf(input, "restore %s %d", filename, &sample) == 2) {
+                        strncpy(cmd.filename, filename, MAX_PATH_LEN - 1);
+                        cmd.arg = sample;
+
+                        char response[MAX_RESPONSE_LEN] = "";
+                        process_command(&cmd, state, response, sizeof(response));
+                        printf("%s", response);
+                    } else {
+                        printf("Usage: restore <filename> <sample_number>\n");
                     }
                     continue;
                 } else {
