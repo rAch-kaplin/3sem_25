@@ -26,7 +26,6 @@ struct Result {
 
 struct ServerInfo {
     struct in_addr addr;
-    int num_cores;
 };
 
 int serialize_task(const struct Task *task, char *buffer, size_t buffer_size);

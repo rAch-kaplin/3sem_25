@@ -23,7 +23,7 @@ int send_task_to_server(const struct ServerInfo *server, const struct Task *task
         return -1;
     }
 
-    struct sockaddr_in servaddr;
+    struct sockaddr_in servaddr = {0};
     memset(&servaddr, 0, sizeof(servaddr));
     servaddr.sin_family = AF_INET;
     servaddr.sin_port = htons(TCP_TASK_PORT);

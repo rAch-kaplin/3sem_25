@@ -8,19 +8,17 @@
 #include "tcp_server.h"
 #include "log.h"
 
-static void* udp_server_thread(void *arg) {
-    (void)arg;
+static void* udp_server_thread() {
     start_udp_discovery_server();
     return NULL;
 }
 
-static void* tcp_server_thread(void *arg) {
-    (void)arg;
+static void* tcp_server_thread() {
     start_tcp_task_server();
     return NULL;
 }
 
-int main(void) {
+int main() {
     if (LoggerInit(LOGL_DEBUG, "server.log", DEFAULT_MODE) != 0) {
         fprintf(stderr, "Failed to initialize logger\n");
         return 1;

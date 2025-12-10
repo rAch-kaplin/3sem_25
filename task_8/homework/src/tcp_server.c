@@ -60,7 +60,7 @@ static void* handle_client(void *arg) {
     result.total_points = task.num_points;
     result.points_inside = points_inside;
 
-    char result_buffer[BUFFER_SIZE];
+    char result_buffer[BUFFER_SIZE] = "";
     int result_len = serialize_result(&result, result_buffer, sizeof(result_buffer));
     if (result_len < 0) {
         ELOG_("Failed to serialize result");
@@ -92,7 +92,7 @@ int start_tcp_task_server(void) {
         return -1;
     }
 
-    struct sockaddr_in servaddr;
+    struct sockaddr_in servaddr = {0};
     memset(&servaddr, 0, sizeof(servaddr));
     servaddr.sin_family = AF_INET;
     servaddr.sin_addr.s_addr = INADDR_ANY;

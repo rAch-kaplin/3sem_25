@@ -7,11 +7,15 @@
 #include <arpa/inet.h>
 #include <sys/time.h>
 #include <errno.h>
+#include <assert.h>
+
 #include "udp_discovery.h"
 #include "common.h"
 #include "log.h"
 
 int discover_servers_udp(struct ServerList *server_list, int timeout_sec) {
+    assert(server_list);
+
     if (!server_list) {
         return -1;
     }
@@ -80,7 +84,6 @@ int discover_servers_udp(struct ServerList *server_list, int timeout_sec) {
 
             if (!found) {
                 server_list->servers[server_list->count].addr = from_addr.sin_addr;
-                server_list->servers[server_list->count].num_cores = 1;
                 server_list->count++;
                 DLOG_("Discovered server: %s", inet_ntoa(from_addr.sin_addr));
             }
