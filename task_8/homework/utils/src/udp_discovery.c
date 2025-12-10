@@ -44,10 +44,10 @@ int discover_servers_udp(struct ServerList *server_list, int timeout_sec) {
         return -1;
     }
 
-    struct sockaddr_in broadcast_addr;
-    memset(&broadcast_addr, 0, sizeof(broadcast_addr));
-    broadcast_addr.sin_family = AF_INET;
-    broadcast_addr.sin_port = htons(UDP_DISCOVERY_PORT);
+    struct sockaddr_in broadcast_addr = {0};
+
+    broadcast_addr.sin_family      = AF_INET;
+    broadcast_addr.sin_port        = htons(UDP_DISCOVERY_PORT);
     broadcast_addr.sin_addr.s_addr = INADDR_BROADCAST;
 
     if (sendto(sockfd, DISCOVERY_REQUEST, strlen(DISCOVERY_REQUEST), 0,
@@ -59,8 +59,8 @@ int discover_servers_udp(struct ServerList *server_list, int timeout_sec) {
 
     DLOG_("Sent UDP discovery broadcast");
 
-    char buffer[256];
-    struct sockaddr_in from_addr;
+    char buffer[256] = "";
+    struct sockaddr_in from_addr = {0};
     socklen_t from_len = sizeof(from_addr);
 
     while (server_list->count < MAX_SERVERS) {
@@ -109,11 +109,11 @@ int start_udp_discovery_server(void) {
         return -1;
     }
 
-    struct sockaddr_in servaddr;
-    memset(&servaddr, 0, sizeof(servaddr));
-    servaddr.sin_family = AF_INET;
-    servaddr.sin_addr.s_addr = INADDR_ANY;
-    servaddr.sin_port = htons(UDP_DISCOVERY_PORT);
+    struct sockaddr_in servaddr = {0};
+
+    servaddr.sin_family         = AF_INET;
+    servaddr.sin_addr.s_addr    = INADDR_ANY;
+    servaddr.sin_port           = htons(UDP_DISCOVERY_PORT);
 
     if (bind(sockfd, (struct sockaddr*)&servaddr, sizeof(servaddr)) < 0) {
         ELOG_("bind failed: %s", strerror(errno));
@@ -123,8 +123,8 @@ int start_udp_discovery_server(void) {
 
     DLOG_("UDP discovery server listening on port %d", UDP_DISCOVERY_PORT);
 
-    char buffer[256];
-    struct sockaddr_in cliaddr;
+    char buffer[256] = "";
+    struct sockaddr_in cliaddr = {0};
     socklen_t len = sizeof(cliaddr);
 
     while (1) {

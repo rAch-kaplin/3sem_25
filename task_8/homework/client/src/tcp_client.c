@@ -24,10 +24,10 @@ int send_task_to_server(const struct ServerInfo *server, const struct Task *task
     }
 
     struct sockaddr_in servaddr = {0};
-    memset(&servaddr, 0, sizeof(servaddr));
-    servaddr.sin_family = AF_INET;
-    servaddr.sin_port = htons(TCP_TASK_PORT);
-    servaddr.sin_addr = server->addr;
+
+    servaddr.sin_family      = AF_INET;
+    servaddr.sin_port        = htons(TCP_TASK_PORT);
+    servaddr.sin_addr.s_addr = server->addr.s_addr;
 
     if (connect(sockfd, (struct sockaddr*)&servaddr, sizeof(servaddr)) < 0) {
         ELOG_("connect to %s failed: %s", inet_ntoa(server->addr), strerror(errno));
@@ -35,7 +35,8 @@ int send_task_to_server(const struct ServerInfo *server, const struct Task *task
         return -1;
     }
 
-    char buffer[BUFFER_SIZE];
+    char buffer[BUFFER_SIZE] = "";
+    
     int task_len = serialize_task(task, buffer, sizeof(buffer));
     if (task_len < 0) {
         ELOG_("Failed to serialize task");

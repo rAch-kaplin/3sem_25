@@ -8,6 +8,7 @@
 #include <pthread.h>
 #include <errno.h>
 #include <time.h>
+
 #include "tcp_server.h"
 #include "common.h"
 #include "monte_carlo.h"
@@ -19,7 +20,7 @@ static void* handle_client(void *arg) {
     int connfd = *((int*)arg);
     free(arg);
 
-    char buffer[BUFFER_SIZE];
+    char buffer[BUFFER_SIZE] = "";
     ssize_t recv_len = read(connfd, buffer, sizeof(buffer) - 1);
 
     if (recv_len < 0) {
@@ -56,11 +57,13 @@ static void* handle_client(void *arg) {
     double integral = area * (double)points_inside / (double)task.num_points;
 
     struct Result result = {0};
-    result.integral_value = integral;
-    result.total_points = task.num_points;
-    result.points_inside = points_inside;
+
+    result.integral_value   = integral;
+    result.total_points     = task.num_points;
+    result.points_inside    = points_inside;
 
     char result_buffer[BUFFER_SIZE] = "";
+
     int result_len = serialize_result(&result, result_buffer, sizeof(result_buffer));
     if (result_len < 0) {
         ELOG_("Failed to serialize result");
@@ -93,10 +96,10 @@ int start_tcp_task_server(void) {
     }
 
     struct sockaddr_in servaddr = {0};
-    memset(&servaddr, 0, sizeof(servaddr));
-    servaddr.sin_family = AF_INET;
+
+    servaddr.sin_family      = AF_INET;
     servaddr.sin_addr.s_addr = INADDR_ANY;
-    servaddr.sin_port = htons(TCP_TASK_PORT);
+    servaddr.sin_port        = htons(TCP_TASK_PORT);
 
     if (bind(sockfd, (struct sockaddr*)&servaddr, sizeof(servaddr)) < 0) {
         ELOG_("bind failed: %s", strerror(errno));
@@ -113,7 +116,7 @@ int start_tcp_task_server(void) {
     DLOG_("TCP task server listening on port %d", TCP_TASK_PORT);
 
     while (1) {
-        struct sockaddr_in cliaddr;
+        struct sockaddr_in cliaddr = {0};
         socklen_t len = sizeof(cliaddr);
 
         int *connfd = calloc(1, sizeof(*connfd));
