@@ -5,8 +5,10 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <errno.h>
 #include "tcp_client.h"
 #include "common.h"
+#include "log.h"
 
 #define BUFFER_SIZE 4096
 
@@ -17,7 +19,7 @@ int send_task_to_server(const struct ServerInfo *server, const struct Task *task
 
     int sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (sockfd < 0) {
-        perror("socket");
+        ELOG_("socket failed: %s", strerror(errno));
         return -1;
     }
 
@@ -28,7 +30,7 @@ int send_task_to_server(const struct ServerInfo *server, const struct Task *task
     servaddr.sin_addr = server->addr;
 
     if (connect(sockfd, (struct sockaddr*)&servaddr, sizeof(servaddr)) < 0) {
-        perror("connect");
+        ELOG_("connect to %s failed: %s", inet_ntoa(server->addr), strerror(errno));
         close(sockfd);
         return -1;
     }
@@ -36,20 +38,20 @@ int send_task_to_server(const struct ServerInfo *server, const struct Task *task
     char buffer[BUFFER_SIZE];
     int task_len = serialize_task(task, buffer, sizeof(buffer));
     if (task_len < 0) {
-        fprintf(stderr, "Failed to serialize task\n");
+        ELOG_("Failed to serialize task");
         close(sockfd);
         return -1;
     }
 
     if (write(sockfd, buffer, task_len + 1) < 0) {
-        perror("write");
+        ELOG_("write failed: %s", strerror(errno));
         close(sockfd);
         return -1;
     }
 
     ssize_t recv_len = read(sockfd, buffer, sizeof(buffer) - 1);
     if (recv_len < 0) {
-        perror("read");
+        ELOG_("read failed: %s", strerror(errno));
         close(sockfd);
         return -1;
     }
@@ -57,7 +59,7 @@ int send_task_to_server(const struct ServerInfo *server, const struct Task *task
     buffer[recv_len] = '\0';
 
     if (deserialize_result(buffer, result) < 0) {
-        fprintf(stderr, "Failed to deserialize result\n");
+        ELOG_("Failed to deserialize result");
         close(sockfd);
         return -1;
     }

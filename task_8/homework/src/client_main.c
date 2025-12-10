@@ -3,10 +3,16 @@
 #include <string.h>
 #include <unistd.h>
 #include <arpa/inet.h>
+#include <errno.h>
 #include "common.h"
 #include "udp_discovery.h"
 #include "tcp_client.h"
 #include "monte_carlo.h"
+#include "log.h"
+
+#define DEFAULT_NUM_RECTANGLES_SQRT 2
+#define DEFAULT_POINTS_PER_RECTANGLE 1000000
+#define DEFAULT_TIMEOUT 2
 
 static void print_usage(const char *prog_name) {
     printf("Usage: %s [options]\n", prog_name);
@@ -33,7 +39,7 @@ static int parse_ip_addresses(int argc, char *argv[], int start_idx,
 
         struct in_addr addr;
         if (inet_aton(argv[i], &addr) == 0) {
-            fprintf(stderr, "Invalid IP address: %s\n", argv[i]);
+            ELOG_("Invalid IP address: %s", argv[i]);
             return -1;
         }
 
@@ -46,18 +52,23 @@ static int parse_ip_addresses(int argc, char *argv[], int start_idx,
 }
 
 int main(int argc, char *argv[]) {
+    if (LoggerInit(LOGL_DEBUG, "client.log", DEFAULT_MODE) != 0) {
+        fprintf(stderr, "Failed to initialize logger\n");
+        return 1;
+    }
+
     int use_broadcast = 1;
     struct ServerList server_list = {0};
     double x_min = 0.0, x_max = 1.0;
     double y_min = 0.0, y_max = 2.718281828459045;
 
-    int num_rectangles_sqrt = 2;
+    int num_rectangles_sqrt = DEFAULT_NUM_RECTANGLES_SQRT;
     size_t points_per_rectangle = 1000000;
     int timeout = 2;
 
     int opt = 0;
     int ip_option_seen = 0;
-    while ((opt = getopt(argc, argv, "bi:n:p:t:h")) != -1) {
+    while ((opt = getopt(argc, argv, "bi::n:p:t:h")) != -1) {
         switch (opt) {
             case 'b':
                 use_broadcast = 1;
@@ -65,11 +76,21 @@ int main(int argc, char *argv[]) {
             case 'i':
                 use_broadcast = 0;
                 ip_option_seen = 1;
+                if (optarg != NULL) {
+                    struct in_addr addr;
+                    if (inet_aton(optarg, &addr) == 0) {
+                        ELOG_("Invalid IP address: %s", optarg);
+                        return 1;
+                    }
+                    server_list.servers[server_list.count].addr = addr;
+                    server_list.servers[server_list.count].num_cores = 1;
+                    server_list.count++;
+                }
                 break;
             case 'n':
                 num_rectangles_sqrt = atoi(optarg);
                 if (num_rectangles_sqrt < 1) {
-                    fprintf(stderr, "Error: number of rectangles sqrt must be >= 1\n");
+                    ELOG_("Number of rectangles sqrt must be >= 1");
                     return 1;
                 }
                 break;
@@ -89,59 +110,60 @@ int main(int argc, char *argv[]) {
     }
 
     if (ip_option_seen) {
-        if (optind >= argc) {
-            fprintf(stderr, "Error: -i option requires at least one IP address\n");
-            print_usage(argv[0]);
-            return 1;
+        if (optind < argc) {
+            if (parse_ip_addresses(argc, argv, optind, &server_list) < 0) {
+                ELOG_("Failed to parse IP addresses");
+                return 1;
+            }
         }
-        if (parse_ip_addresses(argc, argv, optind, &server_list) <= 0) {
-            fprintf(stderr, "Error: failed to parse IP addresses\n");
+
+        if (server_list.count == 0) {
+            ELOG_("-i option requires at least one IP address");
+            print_usage(argv[0]);
             return 1;
         }
     }
 
     if (use_broadcast) {
-        printf("Discovering servers via UDP broadcast...\n");
+        DLOG_("Discovering servers via UDP broadcast...");
         if (discover_servers_udp(&server_list, timeout) <= 0) {
-            fprintf(stderr, "No servers found via UDP broadcast\n");
+            ELOG_("No servers found via UDP broadcast");
             return 1;
         }
     } else {
         if (server_list.count == 0) {
-            fprintf(stderr, "No IP addresses specified\n");
+            ELOG_("No IP addresses specified");
             print_usage(argv[0]);
             return 1;
         }
-        printf("Using %zu specified server(s)\n", server_list.count);
+        DLOG_("Using %zu specified server(s)", server_list.count);
     }
 
     if (server_list.count == 0) {
-        fprintf(stderr, "No servers available\n");
+        ELOG_("No servers available");
         return 1;
     }
 
     int total_rectangles = num_rectangles_sqrt * num_rectangles_sqrt;
 
-    printf("\nComputing integral from [%.3f, %.3f] x [%.3f, %.3f]\n",
+    DLOG_("Computing integral from [%.3f, %.3f] x [%.3f, %.3f]",
            x_min, x_max, y_min, y_max);
-    printf("Requested grid: %dx%d = %d rectangles\n",
+    DLOG_("Requested grid: %dx%d = %d rectangles",
            num_rectangles_sqrt, num_rectangles_sqrt, total_rectangles);
-    printf("Available servers: %zu\n", server_list.count);
-    printf("Points per rectangle: %zu\n", points_per_rectangle);
+    DLOG_("Available servers: %zu", server_list.count);
+    DLOG_("Points per rectangle: %zu", points_per_rectangle);
 
     size_t rectangles_to_use = (server_list.count < (size_t)total_rectangles)
                                 ? server_list.count
                                 : (size_t)total_rectangles;
 
     if (server_list.count < (size_t)total_rectangles) {
-        printf("Warning: Not enough servers! Requested %d rectangles, but only %zu servers available.\n",
+        DLOG_("Warning: Not enough servers! Requested %d rectangles, but only %zu servers available",
                total_rectangles, server_list.count);
-        printf("Using only %zu rectangles (first %zu servers).\n",
-               rectangles_to_use, rectangles_to_use);
+        DLOG_("Using only %zu rectangles (first %zu servers)", rectangles_to_use, rectangles_to_use);
     } else {
-        printf("Using all %d rectangles.\n", total_rectangles);
+        DLOG_("Using all %d rectangles", total_rectangles);
     }
-    printf("\n");
 
     double x_range = x_max - x_min;
     double y_range = y_max - y_min;
@@ -165,20 +187,20 @@ int main(int argc, char *argv[]) {
             task.y_max = rect_y_max;
             task.num_points = points_per_rectangle;
 
-            printf("Sending rectangle [%d,%d] to %s (interval: [%.3f, %.3f] x [%.3f, %.3f], points: %zu)...\n",
+            DLOG_("Sending rectangle [%d,%d] to %s (interval: [%.3f, %.3f] x [%.3f, %.3f], points: %zu)",
                    i, j, inet_ntoa(server_list.servers[server_idx].addr),
                    task.x_min, task.x_max, task.y_min, task.y_max,
                    task.num_points);
 
             struct Result result = {0};
             if (send_task_to_server(&server_list.servers[server_idx], &task, &result) < 0) {
-                fprintf(stderr, "Failed to get result from %s\n",
-                        inet_ntoa(server_list.servers[server_idx].addr));
+                ELOG_("Failed to get result from %s", inet_ntoa(server_list.servers[server_idx].addr));
                 server_idx++;
                 continue;
             }
 
-            printf("  Partial result: %.15lf (points inside: %zu/%zu)\n",
+            DLOG_("Partial result from %s: %.15lf (points inside: %zu/%zu)",
+                   inet_ntoa(server_list.servers[server_idx].addr),
                    result.integral_value, result.points_inside, result.total_points);
 
             total_result += result.integral_value;
@@ -191,5 +213,6 @@ int main(int argc, char *argv[]) {
     printf("Computed using %zu rectangles out of %d requested\n",
            rectangles_to_use, total_rectangles);
 
+    LoggerDeinit();
     return 0;
 }

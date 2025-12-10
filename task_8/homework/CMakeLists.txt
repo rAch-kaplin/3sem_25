@@ -8,6 +8,10 @@ set(COMMON_SOURCES
     src/common.c
 )
 
+set(LOGGER_SOURCES
+    logger/log.c
+)
+
 set(MONTE_CARLO_SOURCES
     monte_carlo/monte_carlo.c
 )
@@ -27,12 +31,14 @@ set(SERVER_SOURCES
 add_executable(client
     ${CLIENT_SOURCES}
     ${COMMON_SOURCES}
+    ${LOGGER_SOURCES}
     ${MONTE_CARLO_SOURCES}
 )
 
 target_include_directories(client PRIVATE
     include
     monte_carlo
+    logger
 )
 
 target_link_libraries(client
@@ -43,12 +49,14 @@ target_link_libraries(client
 add_executable(server
     ${SERVER_SOURCES}
     ${COMMON_SOURCES}
+    ${LOGGER_SOURCES}
     ${MONTE_CARLO_SOURCES}
 )
 
 target_include_directories(server PRIVATE
     include
     monte_carlo
+    logger
 )
 
 target_link_libraries(server

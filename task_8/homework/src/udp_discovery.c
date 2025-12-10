@@ -6,9 +6,10 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <sys/time.h>
-#include <unistd.h>
+#include <errno.h>
 #include "udp_discovery.h"
 #include "common.h"
+#include "log.h"
 
 int discover_servers_udp(struct ServerList *server_list, int timeout_sec) {
     if (!server_list) {
@@ -19,13 +20,13 @@ int discover_servers_udp(struct ServerList *server_list, int timeout_sec) {
 
     int sockfd = socket(AF_INET, SOCK_DGRAM, 0);
     if (sockfd < 0) {
-        perror("socket");
+        ELOG_("socket failed: %s", strerror(errno));
         return -1;
     }
 
     int broadcast = 1;
     if (setsockopt(sockfd, SOL_SOCKET, SO_BROADCAST, &broadcast, sizeof(broadcast)) < 0) {
-        perror("setsockopt SO_BROADCAST");
+        ELOG_("setsockopt SO_BROADCAST failed: %s", strerror(errno));
         close(sockfd);
         return -1;
     }
@@ -34,7 +35,7 @@ int discover_servers_udp(struct ServerList *server_list, int timeout_sec) {
     tv.tv_sec = timeout_sec;
     tv.tv_usec = 0;
     if (setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) < 0) {
-        perror("setsockopt SO_RCVTIMEO");
+        ELOG_("setsockopt SO_RCVTIMEO failed: %s", strerror(errno));
         close(sockfd);
         return -1;
     }
@@ -47,12 +48,12 @@ int discover_servers_udp(struct ServerList *server_list, int timeout_sec) {
 
     if (sendto(sockfd, DISCOVERY_REQUEST, strlen(DISCOVERY_REQUEST), 0,
                (struct sockaddr*)&broadcast_addr, sizeof(broadcast_addr)) < 0) {
-        perror("sendto");
+        ELOG_("sendto failed: %s", strerror(errno));
         close(sockfd);
         return -1;
     }
 
-    printf("Sent UDP discovery broadcast...\n");
+    DLOG_("Sent UDP discovery broadcast");
 
     char buffer[256];
     struct sockaddr_in from_addr;
@@ -81,26 +82,26 @@ int discover_servers_udp(struct ServerList *server_list, int timeout_sec) {
                 server_list->servers[server_list->count].addr = from_addr.sin_addr;
                 server_list->servers[server_list->count].num_cores = 1;
                 server_list->count++;
-                printf("Discovered server: %s\n", inet_ntoa(from_addr.sin_addr));
+                DLOG_("Discovered server: %s", inet_ntoa(from_addr.sin_addr));
             }
         }
     }
 
     close(sockfd);
-    printf("Discovery complete. Found %zu servers.\n", server_list->count);
+    DLOG_("Discovery complete. Found %zu servers", server_list->count);
     return (int)server_list->count;
 }
 
 int start_udp_discovery_server(void) {
     int sockfd = socket(AF_INET, SOCK_DGRAM, 0);
     if (sockfd < 0) {
-        perror("socket");
+        ELOG_("socket failed: %s", strerror(errno));
         return -1;
     }
 
     int reuse = 1;
     if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) < 0) {
-        perror("setsockopt SO_REUSEADDR");
+        ELOG_("setsockopt SO_REUSEADDR failed: %s", strerror(errno));
         close(sockfd);
         return -1;
     }
@@ -112,12 +113,12 @@ int start_udp_discovery_server(void) {
     servaddr.sin_port = htons(UDP_DISCOVERY_PORT);
 
     if (bind(sockfd, (struct sockaddr*)&servaddr, sizeof(servaddr)) < 0) {
-        perror("bind");
+        ELOG_("bind failed: %s", strerror(errno));
         close(sockfd);
         return -1;
     }
 
-    printf("UDP discovery server listening on port %d...\n", UDP_DISCOVERY_PORT);
+    DLOG_("UDP discovery server listening on port %d", UDP_DISCOVERY_PORT);
 
     char buffer[256];
     struct sockaddr_in cliaddr;
@@ -128,7 +129,7 @@ int start_udp_discovery_server(void) {
                                     (struct sockaddr*)&cliaddr, &len);
 
         if (recv_len < 0) {
-            perror("recvfrom");
+            ELOG_("recvfrom failed: %s", strerror(errno));
             continue;
         }
 
@@ -137,9 +138,9 @@ int start_udp_discovery_server(void) {
         if (strcmp(buffer, DISCOVERY_REQUEST) == 0) {
             if (sendto(sockfd, DISCOVERY_RESPONSE, strlen(DISCOVERY_RESPONSE), 0,
                       (struct sockaddr*)&cliaddr, len) < 0) {
-                perror("sendto");
+                ELOG_("sendto failed: %s", strerror(errno));
             } else {
-                printf("Sent discovery response to %s\n", inet_ntoa(cliaddr.sin_addr));
+                DLOG_("Sent discovery response to %s", inet_ntoa(cliaddr.sin_addr));
             }
         }
     }

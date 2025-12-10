@@ -1,4 +1,4 @@
-                                                                                                                                                                                                                                                                            #include <stdio.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -6,9 +6,12 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <pthread.h>
+#include <errno.h>
+#include <time.h>
 #include "tcp_server.h"
 #include "common.h"
 #include "monte_carlo.h"
+#include "log.h"
 
 #define BUFFER_SIZE 4096
 
@@ -20,7 +23,7 @@ static void* handle_client(void *arg) {
     ssize_t recv_len = read(connfd, buffer, sizeof(buffer) - 1);
 
     if (recv_len < 0) {
-        perror("read");
+        ELOG_("read failed: %s", strerror(errno));
         close(connfd);
         return NULL;
     }
@@ -29,12 +32,12 @@ static void* handle_client(void *arg) {
 
     struct Task task = {0};
     if (deserialize_task(buffer, &task) < 0) {
-        fprintf(stderr, "Failed to deserialize task\n");
+        ELOG_("Failed to deserialize task");
         close(connfd);
         return NULL;
     }
 
-    printf("Received task: [%.3f, %.3f] x [%.3f, %.3f], points: %zu\n",
+    DLOG_("Received task: [%.3f, %.3f] x [%.3f, %.3f], points: %zu",
            task.x_min, task.x_max, task.y_min, task.y_max, task.num_points);
 
     size_t points_inside = 0;
@@ -60,16 +63,16 @@ static void* handle_client(void *arg) {
     char result_buffer[BUFFER_SIZE];
     int result_len = serialize_result(&result, result_buffer, sizeof(result_buffer));
     if (result_len < 0) {
-        fprintf(stderr, "Failed to serialize result\n");
+        ELOG_("Failed to serialize result");
         close(connfd);
         return NULL;
     }
 
     if (write(connfd, result_buffer, result_len + 1) < 0) {
-        perror("write");
+        ELOG_("write failed: %s", strerror(errno));
     }
 
-    printf("Sent result: %.15lf\n", result.integral_value);
+    DLOG_("Sent result: %.15lf", result.integral_value);
 
     close(connfd);
     return NULL;
@@ -78,13 +81,13 @@ static void* handle_client(void *arg) {
 int start_tcp_task_server(void) {
     int sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (sockfd < 0) {
-        perror("socket");
+        ELOG_("socket failed: %s", strerror(errno));
         return -1;
     }
 
     int reuse = 1;
     if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) < 0) {
-        perror("setsockopt SO_REUSEADDR");
+        ELOG_("setsockopt SO_REUSEADDR failed: %s", strerror(errno));
         close(sockfd);
         return -1;
     }
@@ -96,18 +99,18 @@ int start_tcp_task_server(void) {
     servaddr.sin_port = htons(TCP_TASK_PORT);
 
     if (bind(sockfd, (struct sockaddr*)&servaddr, sizeof(servaddr)) < 0) {
-        perror("bind");
+        ELOG_("bind failed: %s", strerror(errno));
         close(sockfd);
         return -1;
     }
 
     if (listen(sockfd, 10) < 0) {
-        perror("listen");
+        ELOG_("listen failed: %s", strerror(errno));
         close(sockfd);
         return -1;
     }
 
-    printf("TCP task server listening on port %d...\n", TCP_TASK_PORT);
+    DLOG_("TCP task server listening on port %d", TCP_TASK_PORT);
 
     while (1) {
         struct sockaddr_in cliaddr;
@@ -115,19 +118,18 @@ int start_tcp_task_server(void) {
 
         int *connfd = calloc(1, sizeof(*connfd));
         if (!connfd) {
-            perror("calloc");
+            ELOG_("calloc failed: %s", strerror(errno));
             continue;
         }
 
         *connfd = accept(sockfd, (struct sockaddr*)&cliaddr, &len);
         if (*connfd < 0) {
-            perror("accept");
+            ELOG_("accept failed: %s", strerror(errno));
             free(connfd);
             continue;
         }
 
-        printf("New connection from %s:%d\n",
-               inet_ntoa(cliaddr.sin_addr), ntohs(cliaddr.sin_port));
+        DLOG_("New connection from %s:%d", inet_ntoa(cliaddr.sin_addr), ntohs(cliaddr.sin_port));
 
         pthread_t tid;
         pthread_create(&tid, NULL, handle_client, connfd);
