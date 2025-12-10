@@ -1,7 +1,9 @@
+#define _GNU_SOURCE
+#include <string.h>
+#include <stdlib.h>
+
 #include <arpa/inet.h>
 #include <assert.h>
-#include <stdlib.h>
-#include <string.h>
 #include <unistd.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
@@ -11,6 +13,7 @@
 #include "config.h"
 #include "log.h"
 #include "udp_discovery.h"
+#include "tcp_client.h"
 
 
 IPList* create_iplist() {

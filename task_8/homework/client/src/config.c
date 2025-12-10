@@ -1,9 +1,12 @@
 #include "config.h"
 #include "client.h"
 #include "log.h"
+#include "monte_carlo.h"
 
 #include <unistd.h>
 #include <getopt.h>
+#include <arpa/inet.h>
+#include <stdlib.h>
 
 void print_usage(const char *prog_name) {
     printf("Usage: %s [options]\n", prog_name);
@@ -31,7 +34,7 @@ int parse_ip_addresses_from_args(int argc, char *argv[], int start_idx, ClientCo
     cfg->server_list.count = 0;
     for (int i = 0; i < iplist->count && cfg->server_list.count < MAX_SERVERS; i++) {
         struct in_addr addr = {0};
-        if (inet_aton(iplist->ip_addresses[i], &addr) == 0) {
+        if (inet_pton(AF_INET, iplist->ip_addresses[i], &addr) == 0) {
             ELOG_("Invalid IP address: %s", iplist->ip_addresses[i]);
             free_iplist(iplist);
             return -1;
@@ -104,7 +107,7 @@ int parse_arguments(int argc, char *argv[], ClientConfig *cfg) {
         if (ip_arg) {
             struct in_addr addr = {0};
 
-            if (inet_aton(ip_arg, &addr) == 0) {
+            if (inet_pton(AF_INET, ip_arg, &addr) == 0) {
                 ELOG_("Invalid IP address: %s", ip_arg);
                 return -1;
             }

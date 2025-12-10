@@ -1,3 +1,5 @@
+#define _GNU_SOURCE
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -8,6 +10,7 @@
 #include <pthread.h>
 #include <errno.h>
 #include <time.h>
+#include <stdlib.h>
 
 #include "tcp_server.h"
 #include "common.h"
