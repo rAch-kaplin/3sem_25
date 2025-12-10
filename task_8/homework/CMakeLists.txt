@@ -7,6 +7,7 @@ set(CMAKE_C_EXTENSIONS OFF)
 
 option(ENABLE_SANITIZERS "Enable sanitizers for debug build" OFF)
 
+# Warning flags
 set(WARNING_FLAGS
     -Wall -Wextra -Wcast-align -Wcast-qual -Wchar-subscripts -Wconversion
     -Wempty-body -Wfloat-equal -Wformat-security -Wformat=2 -Wlogical-op
@@ -15,9 +16,11 @@ set(WARNING_FLAGS
     -Wno-missing-field-initializers -Wno-narrowing
 )
 
+# Build type flags
 set(CMAKE_C_FLAGS_DEBUG   "-D_DEBUG -ggdb3 -O0 -fstack-protector -fno-omit-frame-pointer -Werror=vla")
 set(CMAKE_C_FLAGS_RELEASE "-O2")
 
+# Sanitizers
 if(ENABLE_SANITIZERS AND CMAKE_BUILD_TYPE STREQUAL "Debug")
     set(SAN_FLAGS
         -fsanitize=address,alignment,bool,bounds,enum,float-cast-overflow
@@ -27,20 +30,23 @@ if(ENABLE_SANITIZERS AND CMAKE_BUILD_TYPE STREQUAL "Debug")
     )
 endif()
 
-# Logger
+# Find threads library
+find_package(Threads REQUIRED)
+
+# Logger library
 add_library(logger STATIC
     logger/log.c
 )
 target_include_directories(logger PUBLIC logger)
 
-# Monte Carlo
+# Monte Carlo library
 add_library(montecarlo STATIC
     monte_carlo/monte_carlo.c
 )
 target_include_directories(montecarlo PUBLIC monte_carlo)
 target_link_libraries(montecarlo PUBLIC m)
 
-# Utils (serializer + udp_discovery)
+# Utils library
 add_library(utils STATIC
     utils/src/serializer.c
     utils/src/udp_discovery.c
@@ -48,37 +54,37 @@ add_library(utils STATIC
 target_include_directories(utils PUBLIC utils/include)
 target_link_libraries(utils PUBLIC logger)
 
-# Client library (tcp_client + client core + config)
+# Client library
 add_library(client_lib STATIC
     client/src/tcp_client.c
     client/src/client.c
     client/src/config.c
 )
 target_include_directories(client_lib PUBLIC client/include utils/include logger monte_carlo)
-target_link_libraries(client_lib PUBLIC utils logger montecarlo)
+target_link_libraries(client_lib PUBLIC utils logger montecarlo Threads::Threads)
 
-# Server library (tcp_server)
+# Server library
 add_library(server_lib STATIC
     server/src/tcp_server.c
 )
 target_include_directories(server_lib PUBLIC server/include utils/include logger monte_carlo)
-target_link_libraries(server_lib PUBLIC utils logger montecarlo)
+target_link_libraries(server_lib PUBLIC utils logger montecarlo Threads::Threads)
 
 # Client executable
 add_executable(client
     client/src/client_main.c
 )
-target_link_libraries(client PRIVATE client_lib)
+target_link_libraries(client PRIVATE client_lib Threads::Threads)
 target_compile_options(client PRIVATE ${WARNING_FLAGS})
 
 # Server executable
 add_executable(server
     server/src/server_main.c
 )
-target_link_libraries(server PRIVATE server_lib)
+target_link_libraries(server PRIVATE server_lib Threads::Threads)
 target_compile_options(server PRIVATE ${WARNING_FLAGS})
 
-# Sanitizers
+# Apply sanitizers if enabled
 if(SAN_FLAGS)
     target_compile_options(client PRIVATE ${SAN_FLAGS})
     target_link_options(client PRIVATE ${SAN_FLAGS})
