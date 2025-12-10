@@ -1,5 +1,6 @@
 #define _GNU_SOURCE
 
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -14,7 +15,6 @@
 
 #include "tcp_server.h"
 #include "common.h"
-#include "monte_carlo.h"
 #include "log.h"
 
 #define BUFFER_SIZE 4096
@@ -52,7 +52,7 @@ static void* handle_client(void *arg) {
         double x = task.x_min + (double)rand_r(&seed) / RAND_MAX * (task.x_max - task.x_min);
         double y = task.y_min + (double)rand_r(&seed) / RAND_MAX * (task.y_max - task.y_min);
 
-        if (y <= ExponentialFunc(x)) {
+        if (y <= exp(x)) {
             points_inside++;
         }
     }

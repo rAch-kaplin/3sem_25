@@ -39,13 +39,6 @@ add_library(logger STATIC
 )
 target_include_directories(logger PUBLIC logger)
 
-# Monte Carlo library
-add_library(montecarlo STATIC
-    monte_carlo/monte_carlo.c
-)
-target_include_directories(montecarlo PUBLIC monte_carlo)
-target_link_libraries(montecarlo PUBLIC m)
-
 # Utils library
 add_library(utils STATIC
     utils/src/serializer.c
@@ -60,15 +53,15 @@ add_library(client_lib STATIC
     client/src/client.c
     client/src/config.c
 )
-target_include_directories(client_lib PUBLIC client/include utils/include logger monte_carlo)
-target_link_libraries(client_lib PUBLIC utils logger montecarlo Threads::Threads)
+target_include_directories(client_lib PUBLIC client/include utils/include logger)
+target_link_libraries(client_lib PUBLIC utils logger Threads::Threads)
 
 # Server library
 add_library(server_lib STATIC
     server/src/tcp_server.c
 )
-target_include_directories(server_lib PUBLIC server/include utils/include logger monte_carlo)
-target_link_libraries(server_lib PUBLIC utils logger montecarlo Threads::Threads)
+target_include_directories(server_lib PUBLIC server/include utils/include logger)
+target_link_libraries(server_lib PUBLIC utils logger Threads::Threads)
 
 # Client executable
 add_executable(client
@@ -81,7 +74,7 @@ target_compile_options(client PRIVATE ${WARNING_FLAGS})
 add_executable(server
     server/src/server_main.c
 )
-target_link_libraries(server PRIVATE server_lib Threads::Threads)
+target_link_libraries(server PRIVATE server_lib Threads::Threads m)
 target_compile_options(server PRIVATE ${WARNING_FLAGS})
 
 # Apply sanitizers if enabled

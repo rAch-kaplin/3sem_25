@@ -3,7 +3,6 @@
 
 #include "config.h"
 
-#define DEFAULT_NUM_RECTANGLES_SQRT     1
 #define DEFAULT_POINTS_PER_RECTANGLE    10000000
 #define DEFAULT_TIMEOUT                 2
 

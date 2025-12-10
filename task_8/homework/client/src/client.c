@@ -129,61 +129,55 @@ int validate_server_count(const ClientConfig *cfg) {
 double compute_integral_distributed(const ClientConfig *cfg) {
     assert(cfg);
 
-    int total_rectangles = cfg->num_rectangles_sqrt * cfg->num_rectangles_sqrt;
-    size_t rectangles_to_use = (cfg->server_list.count < (size_t)total_rectangles)
-                                ? cfg->server_list.count
-                                : (size_t)total_rectangles;
+    size_t num_strips = cfg->server_list.count;
+    if (num_strips == 0) {
+        ELOG_("No servers available");
+        return 0.0;
+    }
 
     double x_range = cfg->x_max - cfg->x_min;
     double y_range = cfg->y_max - cfg->y_min;
 
-    double x_step = x_range / cfg->num_rectangles_sqrt;
-    double y_step = y_range / cfg->num_rectangles_sqrt;
+    double strip_width = x_range / num_strips;
 
     double total_result = 0.0;
     size_t server_idx = 0;
-    int rectangles_processed = 0;
 
-    for (int i = 0; i < cfg->num_rectangles_sqrt && server_idx < rectangles_to_use; i++) {
-        for (int j = 0; j < cfg->num_rectangles_sqrt && server_idx < rectangles_to_use; j++) {
+    for (size_t strip_idx = 0; strip_idx < num_strips && server_idx < num_strips; strip_idx++) {
+        double strip_x_min = cfg->x_min + strip_idx * strip_width;
+        double strip_x_max = (strip_idx == num_strips - 1)
+                            ? cfg->x_max
+                            : strip_x_min + strip_width;
 
-            double rect_x_min = cfg->x_min + i * x_step;
-            double rect_x_max = (i == cfg->num_rectangles_sqrt - 1) ? cfg->x_max : cfg->x_min + (i + 1) * x_step;
+        struct Task task = {
+            .x_min = strip_x_min,
+            .x_max = strip_x_max,
+            .y_min = cfg->y_min,
+            .y_max = cfg->y_max,
+            .num_points = cfg->points_per_rectangle
+        };
 
-            double rect_y_min = cfg->y_min + j * y_step;
-            double rect_y_max = (j == cfg->num_rectangles_sqrt - 1) ? cfg->y_max : cfg->y_min + (j + 1) * y_step;
+        DLOG_("Sending strip %zu to %s (x: [%.3f, %.3f], y: [%.3f, %.3f], points: %zu)",
+               strip_idx, inet_ntoa(cfg->server_list.servers[server_idx].addr),
+               task.x_min, task.x_max, task.y_min, task.y_max,
+               task.num_points);
 
-            struct Task task = {
-                .x_min = rect_x_min,
-                .x_max = rect_x_max,
-                .y_min = rect_y_min,
-                .y_max = rect_y_max,
-                .num_points = cfg->points_per_rectangle
-            };
-
-            DLOG_("Sending rectangle [%d,%d] to %s (interval: [%.3f, %.3f] x [%.3f, %.3f], points: %zu)",
-                   i, j, inet_ntoa(cfg->server_list.servers[server_idx].addr),
-                   task.x_min, task.x_max, task.y_min, task.y_max,
-                   task.num_points);
-
-            struct Result result = {0};
-            if (send_task_to_server(&cfg->server_list.servers[server_idx], &task, &result) < 0) {
-                ELOG_("Failed to get result from %s",
-                       inet_ntoa(cfg->server_list.servers[server_idx].addr));
-                server_idx++;
-                continue;
-            }
-
-            DLOG_("Partial result from %s: %.15lf (points inside: %zu/%zu)",
-                   inet_ntoa(cfg->server_list.servers[server_idx].addr),
-                   result.integral_value, result.points_inside, result.total_points);
-
-            total_result += result.integral_value;
-            rectangles_processed++;
+        struct Result result = {0};
+        if (send_task_to_server(&cfg->server_list.servers[server_idx], &task, &result) < 0) {
+            ELOG_("Failed to get result from %s",
+                   inet_ntoa(cfg->server_list.servers[server_idx].addr));
             server_idx++;
+            continue;
         }
+
+        DLOG_("Partial result from %s: %.15lf (points inside: %zu/%zu)",
+               inet_ntoa(cfg->server_list.servers[server_idx].addr),
+               result.integral_value, result.points_inside, result.total_points);
+
+        total_result += result.integral_value;
+        server_idx++;
     }
 
-    DLOG_("Processed %d rectangles successfully", rectangles_processed);
+    DLOG_("Processed %zu strips successfully", server_idx);
     return total_result;
 }

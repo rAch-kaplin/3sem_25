@@ -1,19 +1,18 @@
 #include "config.h"
 #include "client.h"
 #include "log.h"
-#include "monte_carlo.h"
 
 #include <unistd.h>
 #include <getopt.h>
 #include <arpa/inet.h>
 #include <stdlib.h>
+#include <math.h>
 
 void print_usage(const char *prog_name) {
     printf("Usage: %s [options]\n", prog_name);
     printf("Options:\n");
     printf("  -b              Use UDP broadcast discovery (default)\n");
     printf("  -i <ip1> [ip2] ...  Use specified IP addresses\n");
-    printf("  -n <sqrt>       Square root of number of rectangles (default: 2, creates 4 rectangles)\n");
     printf("  -p <points>     Total points per rectangle (default: 1000000)\n");
     printf("  -t <timeout>     UDP discovery timeout in seconds (default: 2)\n");
     printf("  -h              Show this help\n");
@@ -49,13 +48,12 @@ int parse_ip_addresses_from_args(int argc, char *argv[], int start_idx, ClientCo
 
 int parse_arguments(int argc, char *argv[], ClientConfig *cfg) {
     cfg->use_broadcast = 1;
-    cfg->num_rectangles_sqrt = DEFAULT_NUM_RECTANGLES_SQRT;
     cfg->points_per_rectangle = DEFAULT_POINTS_PER_RECTANGLE;
     cfg->timeout = DEFAULT_TIMEOUT;
     cfg->x_min = 0.0;
     cfg->x_max = 1.0;
     cfg->y_min = 0.0;
-    cfg->y_max = ExponentialFunc(1);
+    cfg->y_max = exp(1);
 
     cfg->server_list.count = 0;
 
@@ -72,13 +70,6 @@ int parse_arguments(int argc, char *argv[], ClientConfig *cfg) {
                 cfg->use_broadcast = 0;
                 ip_option_seen = 1;
                 ip_arg = optarg;
-                break;
-            case 'n':
-                cfg->num_rectangles_sqrt = atoi(optarg);
-                if (cfg->num_rectangles_sqrt < 1) {
-                    ELOG_("Number of rectangles sqrt must be >= 1");
-                    return -1;
-                }
                 break;
             case 'p':
                 cfg->points_per_rectangle = (size_t)atoll(optarg);
