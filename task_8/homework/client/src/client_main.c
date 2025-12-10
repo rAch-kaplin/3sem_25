@@ -47,8 +47,8 @@ int main(int argc, char *argv[]) {
     printf("Absolute error: %.15lf\n", fabs(final_result - ((double)ExponentialFunc(1) - 1)));
     printf("Computed using %d rectangles\n", cfg.num_rectangles_sqrt * cfg.num_rectangles_sqrt);
 
-    LoggerDeinit();
     DLOG_("Client finished successfully");
+    LoggerDeinit();
 
     return EXIT_SUCCESS;
 }
