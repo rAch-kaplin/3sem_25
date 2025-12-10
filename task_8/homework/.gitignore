@@ -1,0 +1,5 @@
+client.log
+server.log
+build
+.vscode
+.cache
