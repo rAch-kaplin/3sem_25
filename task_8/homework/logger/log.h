@@ -44,12 +44,12 @@ void log_end();
         LOG_END();                                \
     } while(0)
 
-#define LOG_BEGIN(levelMsg, fmt, ...)                                               \
-    do {                                                                            \
-        if (shouldLog(levelMsg))                                                    \
-        {                                                                           \
-            log_begin(levelMsg, __FILE__, __LINE__, __func__, fmt, ##__VA_ARGS__);  \
-        }                                                                           \
+#define LOG_BEGIN(levelMsg, fmt, ...)                                                  \
+    do {                                                                               \
+        if (shouldLog(levelMsg))                                                       \
+        {                                                                              \
+            log_begin(levelMsg, __FILE__, __LINE__, __func__, fmt"\n", ##__VA_ARGS__); \
+        }                                                                              \
     } while(0)
 
 #define LOG_MSG()                                                                   \

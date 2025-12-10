@@ -1,0 +1,10 @@
+[2025-12-10 10:15:24][DEBUG][/home/rach/rAch-kaplin/LinuxCourse/3sem_25/task_8/homework/src/server_main.c:29:main]: 
+Starting Monte Carlo computation server
+[2025-12-10 10:15:24][DEBUG][/home/rach/rAch-kaplin/LinuxCourse/3sem_25/task_8/homework/src/server_main.c:30:main]: 
+UDP discovery port: 8123
+[2025-12-10 10:15:24][DEBUG][/home/rach/rAch-kaplin/LinuxCourse/3sem_25/task_8/homework/src/server_main.c:31:main]: 
+TCP task port: 8125
+[2025-12-10 10:15:24][DEBUG][/home/rach/rAch-kaplin/LinuxCourse/3sem_25/task_8/homework/src/tcp_server.c:113:start_tcp_task_server]: 
+TCP task server listening on port 8125
+[2025-12-10 10:15:24][DEBUG][/home/rach/rAch-kaplin/LinuxCourse/3sem_25/task_8/homework/src/udp_discovery.c:121:start_udp_discovery_server]: 
+UDP discovery server listening on port 8123
