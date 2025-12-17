@@ -84,8 +84,12 @@ int discover_servers_udp(struct ServerList *server_list, int timeout_sec) {
 
             if (!found) {
                 server_list->servers[server_list->count].addr = from_addr.sin_addr;
+                /* UDP discovery всегда работает с фиксированным TCP_TASK_PORT. */
+                server_list->servers[server_list->count].port = TCP_TASK_PORT;
                 server_list->count++;
-                DLOG_("Discovered server: %s", inet_ntoa(from_addr.sin_addr));
+                DLOG_("Discovered server: %s:%d",
+                      inet_ntoa(from_addr.sin_addr),
+                      TCP_TASK_PORT);
             }
         }
     }

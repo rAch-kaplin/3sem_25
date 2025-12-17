@@ -8,11 +8,43 @@
 #include <stdlib.h>
 #include <math.h>
 
+static int parse_ip_port(const char *input, struct in_addr *addr, uint16_t *port) {
+    char buf[128] = {0};
+    char *colon = NULL;
+
+    if (!input || !addr || !port) {
+        return -1;
+    }
+
+    strncpy(buf, input, sizeof(buf) - 1);
+    colon = strchr(buf, ':');
+
+    if (colon) {
+        *colon = '\0';
+        const char *port_str = colon + 1;
+        long p = strtol(port_str, NULL, 10);
+        if (p <= 0 || p > 65535) {
+            ELOG_("Invalid port in '%s'", input);
+            return -1;
+        }
+        *port = (uint16_t)p;
+    } else {
+        *port = TCP_TASK_PORT;
+    }
+
+    if (inet_pton(AF_INET, buf, addr) == 0) {
+        ELOG_("Invalid IP address: %s", buf);
+        return -1;
+    }
+
+    return 0;
+}
+
 void print_usage(const char *prog_name) {
     printf("Usage: %s [options]\n", prog_name);
     printf("Options:\n");
-    printf("  -b              Use UDP broadcast discovery (default)\n");
-    printf("  -i <ip1> [ip2] ...  Use specified IP addresses\n");
+    printf("  -b                  Use UDP broadcast discovery (default)\n");
+    printf("  -i <ip[:port]> [...]  Use specified IP addresses (default port %d)\n", TCP_TASK_PORT);
     printf("  -p <points>     Total points per rectangle (default: 1000000)\n");
     printf("  -t <timeout>     UDP discovery timeout in seconds (default: 2)\n");
     printf("  -h              Show this help\n");
@@ -30,6 +62,7 @@ int parse_ip_addresses_from_args(int argc, char *argv[], int start_idx, ClientCo
         add_ip(iplist, argv[i]);
     }
 
+<<<<<<< HEAD
     cfg->server_list.count = 0;
     for (int i = 0; i < iplist->count && cfg->server_list.count < MAX_SERVERS; i++) {
         struct in_addr addr = {0};
@@ -39,6 +72,19 @@ int parse_ip_addresses_from_args(int argc, char *argv[], int start_idx, ClientCo
             return -1;
         }
         cfg->server_list.servers[cfg->server_list.count].addr = addr;
+=======
+    for (int i = 0; i < iplist->count && cfg->server_list.count < MAX_SERVERS; i++) {
+        struct in_addr addr = {0};
+        uint16_t port = 0;
+
+        if (parse_ip_port(iplist->ip_addresses[i], &addr, &port) < 0) {
+            free_iplist(iplist);
+            return -1;
+        }
+
+        cfg->server_list.servers[cfg->server_list.count].addr = addr;
+        cfg->server_list.servers[cfg->server_list.count].port = port;
+>>>>>>> task-8
         cfg->server_list.count++;
     }
 
@@ -97,13 +143,23 @@ int parse_arguments(int argc, char *argv[], ClientConfig *cfg) {
     if (ip_option_seen) {
         if (ip_arg) {
             struct in_addr addr = {0};
+<<<<<<< HEAD
 
             if (inet_pton(AF_INET, ip_arg, &addr) == 0) {
                 ELOG_("Invalid IP address: %s", ip_arg);
+=======
+            uint16_t port = 0;
+
+            if (parse_ip_port(ip_arg, &addr, &port) < 0) {
+>>>>>>> task-8
                 return -1;
             }
 
             cfg->server_list.servers[cfg->server_list.count].addr = addr;
+<<<<<<< HEAD
+=======
+            cfg->server_list.servers[cfg->server_list.count].port = port;
+>>>>>>> task-8
             cfg->server_list.count++;
         }
 

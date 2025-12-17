@@ -8,6 +8,7 @@
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <sys/types.h>
+#include <pthread.h>
 
 #include "client.h"
 #include "config.h"
@@ -15,6 +16,26 @@
 #include "udp_discovery.h"
 #include "tcp_client.h"
 
+typedef struct {
+    const struct ServerInfo *server;
+    struct Task task;
+    struct Result result;
+    int status;
+} TaskJob;
+
+static void* task_worker(void *arg) {
+    TaskJob *job = (TaskJob*)arg;
+    struct Result res = {0};
+
+    if (send_task_to_server(job->server, &job->task, &res) < 0) {
+        job->status = -1;
+        return NULL;
+    }
+
+    job->result = res;
+    job->status = 0;
+    return NULL;
+}
 
 IPList* create_iplist() {
     IPList *list = (IPList*)calloc(1, sizeof(IPList));
@@ -41,7 +62,8 @@ void add_ip(IPList *list, const char *ip) {
 
     if (list->count >= list->capacity) {
         list->capacity *= 2;
-        list->ip_addresses = realloc(list->ip_addresses, list->capacity * sizeof(char*));
+        list->ip_addresses = (char**)realloc(list->ip_addresses,
+                                             list->capacity * sizeof(char*));
         if (!list->ip_addresses) {
             ELOG_("Failed to reallocate memory for IP addresses");
             return;
@@ -140,44 +162,78 @@ double compute_integral_distributed(const ClientConfig *cfg) {
 
     double strip_width = x_range / num_strips;
 
-    double total_result = 0.0;
-    size_t server_idx = 0;
+    size_t total_points = cfg->points_per_rectangle;
+    size_t base_points_per_strip = total_points / num_strips;
+    size_t remainder = total_points % num_strips;
 
-    for (size_t strip_idx = 0; strip_idx < num_strips && server_idx < num_strips; strip_idx++) {
+    TaskJob *jobs = (TaskJob*)calloc(num_strips, sizeof(*jobs));
+    if (!jobs) {
+        ELOG_("Failed to allocate jobs array");
+        return 0.0;
+    }
+
+    pthread_t *threads = (pthread_t*)calloc(num_strips, sizeof(*threads));
+    if (!threads) {
+        ELOG_("Failed to allocate threads array");
+        free(jobs);
+        return 0.0;
+    }
+
+    for (size_t strip_idx = 0; strip_idx < num_strips; strip_idx++) {
         double strip_x_min = cfg->x_min + strip_idx * strip_width;
         double strip_x_max = (strip_idx == num_strips - 1)
                             ? cfg->x_max
                             : strip_x_min + strip_width;
 
-        struct Task task = {
-            .x_min = strip_x_min,
-            .x_max = strip_x_max,
-            .y_min = cfg->y_min,
-            .y_max = cfg->y_max,
-            .num_points = cfg->points_per_rectangle
-        };
+        size_t points_for_strip = base_points_per_strip +
+                                  (strip_idx < remainder ? 1 : 0);
+
+        jobs[strip_idx].server = &cfg->server_list.servers[strip_idx];
+        jobs[strip_idx].task.x_min = strip_x_min;
+        jobs[strip_idx].task.x_max = strip_x_max;
+        jobs[strip_idx].task.y_min = cfg->y_min;
+        jobs[strip_idx].task.y_max = cfg->y_max;
+        jobs[strip_idx].task.num_points = points_for_strip;
+        jobs[strip_idx].status = -1;
 
         DLOG_("Sending strip %zu to %s (x: [%.3f, %.3f], y: [%.3f, %.3f], points: %zu)",
-               strip_idx, inet_ntoa(cfg->server_list.servers[server_idx].addr),
-               task.x_min, task.x_max, task.y_min, task.y_max,
-               task.num_points);
+               strip_idx, inet_ntoa(jobs[strip_idx].server->addr),
+               jobs[strip_idx].task.x_min, jobs[strip_idx].task.x_max,
+               jobs[strip_idx].task.y_min, jobs[strip_idx].task.y_max,
+               jobs[strip_idx].task.num_points);
 
-        struct Result result = {0};
-        if (send_task_to_server(&cfg->server_list.servers[server_idx], &task, &result) < 0) {
-            ELOG_("Failed to get result from %s",
-                   inet_ntoa(cfg->server_list.servers[server_idx].addr));
-            server_idx++;
-            continue;
+        int rc = pthread_create(&threads[strip_idx], NULL, task_worker, &jobs[strip_idx]);
+        if (rc != 0) {
+            ELOG_("pthread_create failed: %s", strerror(rc));
+            jobs[strip_idx].status = -1;
         }
-
-        DLOG_("Partial result from %s: %.15lf (points inside: %zu/%zu)",
-               inet_ntoa(cfg->server_list.servers[server_idx].addr),
-               result.integral_value, result.points_inside, result.total_points);
-
-        total_result += result.integral_value;
-        server_idx++;
     }
 
-    DLOG_("Processed %zu strips successfully", server_idx);
+    double total_result = 0.0;
+
+    for (size_t i = 0; i < num_strips; i++) {
+        if (threads[i]) {
+            pthread_join(threads[i], NULL);
+        }
+
+        if (jobs[i].status == 0) {
+            DLOG_("Partial result from %s: %.15lf (points inside: %zu/%zu)",
+                   inet_ntoa(jobs[i].server->addr),
+                   jobs[i].result.integral_value,
+                   jobs[i].result.points_inside,
+                   jobs[i].result.total_points);
+
+            total_result += jobs[i].result.integral_value;
+        } else {
+            ELOG_("Failed to get result from %s",
+                   inet_ntoa(jobs[i].server->addr));
+        }
+    }
+
+    DLOG_("Processed %zu strips successfully", num_strips);
+
+    free(threads);
+    free(jobs);
+
     return total_result;
 }

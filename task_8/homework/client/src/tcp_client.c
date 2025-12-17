@@ -27,7 +27,9 @@ int send_task_to_server(const struct ServerInfo *server, const struct Task *task
     struct sockaddr_in servaddr = {0};
 
     servaddr.sin_family      = AF_INET;
-    servaddr.sin_port        = htons(TCP_TASK_PORT);
+    /* Если порт не задан явно (0), используем стандартный TCP_TASK_PORT. */
+    uint16_t port = server->port ? server->port : TCP_TASK_PORT;
+    servaddr.sin_port        = htons(port);
     servaddr.sin_addr.s_addr = server->addr.s_addr;
 
     if (connect(sockfd, (struct sockaddr*)&servaddr, sizeof(servaddr)) < 0) {

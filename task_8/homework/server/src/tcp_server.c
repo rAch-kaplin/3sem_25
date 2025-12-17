@@ -84,7 +84,7 @@ static void* handle_client(void *arg) {
     return NULL;
 }
 
-int start_tcp_task_server(void) {
+int start_tcp_task_server(uint16_t port) {
     int sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (sockfd < 0) {
         ELOG_("socket failed: %s", strerror(errno));
@@ -102,7 +102,7 @@ int start_tcp_task_server(void) {
 
     servaddr.sin_family      = AF_INET;
     servaddr.sin_addr.s_addr = INADDR_ANY;
-    servaddr.sin_port        = htons(TCP_TASK_PORT);
+    servaddr.sin_port        = htons(port);
 
     if (bind(sockfd, (struct sockaddr*)&servaddr, sizeof(servaddr)) < 0) {
         ELOG_("bind failed: %s", strerror(errno));
@@ -116,7 +116,7 @@ int start_tcp_task_server(void) {
         return -1;
     }
 
-    DLOG_("TCP task server listening on port %d", TCP_TASK_PORT);
+    DLOG_("TCP task server listening on port %d", port);
 
     while (1) {
         struct sockaddr_in cliaddr = {0};
