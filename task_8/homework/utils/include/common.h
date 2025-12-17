@@ -26,6 +26,7 @@ struct Result {
 
 struct ServerInfo {
     struct in_addr addr;
+    uint16_t       port;  /* TCP task port for this server */
 };
 
 int serialize_task(const struct Task *task, char *buffer, size_t buffer_size);
